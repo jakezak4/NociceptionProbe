@@ -69,6 +69,19 @@ uint8_t TC1_CS  = 3;
 PWF_MAX31856  thermocouple0(TC0_CS);
 PWF_MAX31856  thermocouple1(TC1_CS);
 
+//PWM variables 
+int targetTemp = 50; //final temp of the ramp
+
+byte M1ArrayPower = 0; //Motor1 Array of Peltiers 
+
+#define URC10_MOTOR_1_DIR 4 // set motor for direction control
+#define URC10_MOTOR_1_PWM 5 // set PWM for power control
+
+int tempPercent; //percent difference from sensor and target temp 
+int absTempPercent;
+int rateAdjust; //adjusted rate of PWM power based
+int constRateAdjust; // contrained to 0-255
+
 void setup()
 {
   delay(250);                            // give chip a chance to stabilize
@@ -91,8 +104,9 @@ void loop()
   delay(500);                                   // 500ms delay... can be as fast as ~100ms in continuous mode, 1 samp avg
   
   static struct var_max31856 TC_CH0, TC_CH1;
-  double tmp;
-  
+  double tmp0;
+  double tmp1; // I added a second temp variable so I can distinguish for PWM control 
+   
   struct var_max31856 *tc_ptr;
   
   // Read CH 0
@@ -106,7 +120,7 @@ void loop()
   // ##### Print information to serial port ####
   
   // Thermocouple channel 0
-  //Serial.print("Thermocouple 0: ");            // Print TC0 header
+  Serial.print("Tmp0;");            // Print TC0 header
   if(TC_CH0.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -127,21 +141,19 @@ void loop()
   {
     //Serial.println("no faults detected");
     // MAX31856 Internal Temp
-    tmp = (double)TC_CH0.ref_jcn_temp * 0.015625;  // convert fixed pt # to double
+    tmp0 = (double)TC_CH0.ref_jcn_temp * 0.015625;  // convert fixed pt # to double
     //Serial.print("Tint = ");                      // print internal temp heading
-    if((-100 > tmp) || (150 < tmp)){Serial.println("unknown fault");}
+    if((-100 > tmp0) || (150 < tmp0)){Serial.println("unknown fault");}
     else{Serial.print("");}
     
     // MAX31856 External (thermocouple) Temp
-    tmp = (double)TC_CH0.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
-    Serial.print("");                   // print TC temp heading
-    Serial.print(tmp);
+    tmp0 = (double)TC_CH0.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
+    Serial.print(tmp0); // print temperature sensor 0 
+    Serial.print("; ");
   }
 
-  Serial.print("\t");
-
   // Thermocouple channel 1
-  Serial.print("Thermocouple 1: ");            // Print TC0 header
+  Serial.print("Tmp1;");            // Print TC0 header
   if(TC_CH1.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -156,17 +168,37 @@ void loop()
     if(0x20 & TC_CH1.status){Serial.print("CJ High  ");}
     if(0x40 & TC_CH1.status){Serial.print("TC Range  ");}
     if(0x80 & TC_CH1.status){Serial.print("CJ Range  ");}
-    Serial.println(" ");
+    Serial.println("");
   }
   else  // no fault, print temperature data
   {
     //Serial.println("no faults detected");
     // MAX31856 Internal Temp
-    tmp = (double)TC_CH1.ref_jcn_temp * 0.015625;  // convert fixed pt # to double
+    tmp1 = (double)TC_CH1.ref_jcn_temp * 0.015625;  // convert fixed pt # to double
     
     // MAX31856 External (thermocouple) Temp
-    tmp = (double)TC_CH1.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
-    Serial.print(tmp);
+    tmp1 = (double)TC_CH1.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
+    Serial.print(tmp1); // print temperature sensor 1
+    Serial.print("; ");
   }
+  
+//PWM control   
+  tempPercent = ((targetTemp - tmp1)/targetTemp) * 100; //determine the amount of off target based on the time the assay is running 
+  rateAdjust = ((tempPercent) * 0.4) + 5; // ??secs
+
+  if(tempPercent < 0) { //constrain scaling to 255 
+    constRateAdjust = 0; 
+  } else {
+    constRateAdjust = rateAdjust;
+  } 
+
+  //set PWM byte from poynomial scaling 
+  M1ArrayPower = (byte) constRateAdjust;
+
+  digitalWrite(URC10_MOTOR_1_DIR, 1);
+  analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);
+
+  Serial.print("PWM;");
+  Serial.print(M1ArrayPower);
   Serial.println();
 }
