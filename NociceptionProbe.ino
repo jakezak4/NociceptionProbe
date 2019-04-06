@@ -120,7 +120,7 @@ void loop()
   // ##### Print information to serial port ####
   
   // Thermocouple channel 0
-  Serial.print("Tmp0;");            // Print TC0 header
+  Serial.print("Tmp0; ");            // Print TC0 header
   if(TC_CH0.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -149,11 +149,11 @@ void loop()
     // MAX31856 External (thermocouple) Temp
     tmp0 = (double)TC_CH0.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
     Serial.print(tmp0); // print temperature sensor 0 
-    Serial.print("; ");
+    Serial.print(" ");
   }
 
   // Thermocouple channel 1
-  Serial.print("Tmp1;");            // Print TC0 header
+  Serial.print("Tmp1; ");            // Print TC0 header
   if(TC_CH1.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -179,15 +179,16 @@ void loop()
     // MAX31856 External (thermocouple) Temp
     tmp1 = (double)TC_CH1.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
     Serial.print(tmp1); // print temperature sensor 1
-    Serial.print("; ");
+    Serial.print(" ");
   }
-  
+
+ 
 //PWM control   
-  tempPercent = ((targetTemp - tmp1)/targetTemp) * 100; //determine the amount of off target based on the time the assay is running 
-  rateAdjust = ((tempPercent) * 0.4) + 5; // ??secs
+  tempPercent = ((targetTemp - tmp0)/targetTemp) * 100; //determine the amount of off target based on the time the assay is running 
+  rateAdjust = ((tempPercent) * 0.4) + 13; // ??secs
 
   if(tempPercent < 0) { //constrain scaling to 255 
-    constRateAdjust = 0; 
+    constRateAdjust = 12; 
   } else {
     constRateAdjust = rateAdjust;
   } 
@@ -198,7 +199,10 @@ void loop()
   digitalWrite(URC10_MOTOR_1_DIR, 1);
   analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);
 
-  Serial.print("PWM;");
+  Serial.print("PWM; ");
   Serial.print(M1ArrayPower);
+  Serial.print(" ");
+  Serial.print("T%; ");
+  Serial.print(tempPercent);
   Serial.println();
 }
