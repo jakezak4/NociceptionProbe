@@ -1,0 +1,12 @@
+rateAdjust = ((tempPercent) * 0.4) + X
+constRateAdjust = Y; 
+
+TrailA: X = 12 Y = 11
+TrailB: X = 10 Y = 9
+TrailC: X = 11 Y = 10
+TrailD: X = 12 Y = 10
+TrailE: X = 13 Y = 12
+
+
+Trail A-C, thermalcouple was moved away from the probe tip so I could cool the probe faster
+Trail D,E, probe was not cooled before loading new program and thermalcouple not moved
