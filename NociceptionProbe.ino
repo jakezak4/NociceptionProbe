@@ -1,67 +1,33 @@
 //This will PWM magnet wire with two k-type thermalcouples for use as a nociceptive probe
 
 /***************************************************************************
-* File Name: SEN30006_MAX31856_example.ino
-* Processor/Platform: Arduino Uno R3 (tested)
-* Development Environment: Arduino 1.8.3
-*
-* Designed for use with with Playing With Fusion MAX31856 thermocouple
-* breakout boards: SEN-30005 (any TC type) or SEN-30006 (any TC type)
-*
-* Copyright © 2015-18 Playing With Fusion, Inc.
-* SOFTWARE LICENSE AGREEMENT: This code is released under the MIT License.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a
-* copy of this software and associated documentation files (the "Software"),
-* to deal in the Software without restriction, including without limitation
-* the rights to use, copy, modify, merge, publish, distribute, sublicense,
-* and/or sell copies of the Software, and to permit persons to whom the
-* Software is furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-* DEALINGS IN THE SOFTWARE.
-* **************************************************************************
-* REVISION HISTORY:
-* Author		Date	    Comments
-* J. Steinlage		2015Aug10   Baseline Rev, first production support
-* J. Steinlage    2016Aug21   Added support for 1shot mode in .cpp files
-* J. Steinlage    2018Jul10   Removed DR and FLT pins - nobody uses them
-*
-* Playing With Fusion, Inc. invests time and resources developing open-source
-* code. Please support Playing With Fusion and continued open-source
-* development by buying products from Playing With Fusion!
-* **************************************************************************
-* ADDITIONAL NOTES:
-* This file contains functions to initialize and run an Arduino Uno R3 in
-* order to communicate with a MAX31856 single channel thermocouple breakout
-* board. Funcionality is as described below:
-*	- Configure Arduino to broadcast results via UART
-*       - call PWF library to configure and read MAX31856 IC (SEN-30005, any type)
-*	- Broadcast results to COM port
-*  Circuit:
-*    Arduino Uno   Arduino Mega  -->  SEN-30006
-*    DIO pin 10      DIO pin 10  -->  CS0
-*    DIO pin  9      DIO pin  9  -->  CS1
-*    MOSI: pin 11  MOSI: pin 51  -->  SDI (must not be changed for hardware SPI)
-*    MISO: pin 12  MISO: pin 50  -->  SDO (must not be changed for hardware SPI)
-*    SCK:  pin 13  SCK:  pin 52  -->  SCLK (must not be changed for hardware SPI)
-*    D03           ''            -->  FAULT (not used in example, pin broken out for dev)
-*    D02           ''            -->  DRDY (not used in example, only used in single-shot mode)
-*    GND           GND           -->  GND
-*    5V            5V            -->  Vin (supply with same voltage as Arduino I/O, 5V)
-*     NOT CONNECTED              --> 3.3V (this is 3.3V output from on-board LDO. DO NOT POWER THIS PIN!
+This will heat magnet wire by PWM with two k-type thermalcouples for use as a nociceptive probe
+M1 controls PWM  
+M2 unused
+Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 ***************************************************************************/
-#include "PlayingWithFusion_MAX31856.h"
-#include "PlayingWithFusion_MAX31856_STRUCT.h"
-#include "SPI.h"
+#include "PlayingWithFusion_MAX31856.h" //Playing With Fusion thermocouple breakout library 
+#include "PlayingWithFusion_MAX31856_STRUCT.h"  //Playing With Fusion thermocouple breakout library 
+#include "SPI.h"  //microcontroler library 
+
+// ##### Assay variables ###############################################
+// #####################################################################
+int targetTemp = 42; //final temp of the ramp
+float tmpOffset = 1.03; //
+int beginningHold = 0; //time before PWM begins UNIT = seconds 
+float holdTarget = 600; //length of time that target temp held UNIT = seconds 
+float assayTime = 800; //total assay time (beginningHold+ramp+holdTarget+extra) UNIT = seconds 
+// #####################################################################
+// #####################################################################
+
+float caliTargetTemp = targetTemp * tmpOffset;
+
+bool assayMax = false; 
+bool holdMax = false;
+bool endHeat = false;
+float startHold = 0; 
+
+//Playing With Fusion breakout 
 
 uint8_t TC0_CS  = 2;
 uint8_t TC1_CS  = 3;
@@ -69,24 +35,53 @@ uint8_t TC1_CS  = 3;
 PWF_MAX31856  thermocouple0(TC0_CS);
 PWF_MAX31856  thermocouple1(TC1_CS);
 
-//PWM variables 
-int targetTemp = 50; //final temp of the ramp
+//Program variables 
 
-byte M1ArrayPower = 0; //Motor1 Array of Peltiers 
-
-#define URC10_MOTOR_1_DIR 4 // set motor for direction control
-#define URC10_MOTOR_1_PWM 5 // set PWM for power control
+int startDelay = 10000; //delay before PWM starts
+float startTime; //store time at which the program is started after button click 
 
 int tempPercent; //percent difference from sensor and target temp 
-int absTempPercent;
+int absTempPercent; //make all temp values positive 
 int rateAdjust; //adjusted rate of PWM power based
-int constRateAdjust; // contrained to 0-255
+int constRateAdjust; // contrained to 0-255 
 
-void setup()
-{
+// PID variables 
+float proportion;
+float cProportion = 100 / caliTargetTemp * 1.4; //testing
+//float cProportion = 25.788 * pow(caliTargetTemp,-0.549); //this works for 4 and 38 to 46oc
+float cIntegral = cProportion / 10.0;
+float maxIntegral = 50; //testing
+//float maxIntegral = 0.1418 * pow(caliTargetTemp,2) - 5.6618 * caliTargetTemp + 100.38; //this works for 4 and 38 to 46oc
+float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
+float integralFunctional;
+
+//Button controler settings 
+int ledPin = 9; // button set up
+int buttonStart = A0;
+int buttonStop = A1;
+
+byte leds = 0;
+bool trigger = false;
+
+//Motor controler settings 
+byte M1ArrayPower = 0; //Motor1 Array of Peltiers 
+char peltierPower[4];
+
+#define URC10_MOTOR_1_DIR 4 // set motor for direction control for Peltier
+#define URC10_MOTOR_1_PWM 5 // set PWM for power control for Peltier
+
+#define URC10_MOTOR_2_DIR 7 // set motor for direction control for Fan
+#define URC10_MOTOR_2_PWM 6 // set PWM for power control for Fan
+
+#define COOL 0       // motor current direction for cooling effect 
+#define HEAT 1       // motor current direction for heating effect 
+
+int tempDirection = HEAT;
+
+void setup(){
   delay(250);                            // give chip a chance to stabilize
   Serial.begin(38400);                   // set baudrate of serial port
-  Serial.println("Playing With Fusion: MAX31856, SEN-30005");
+  //Serial.println("Playing With Fusion: MAX31856, SEN-30005;");
 
   // setup for the the SPI library:
   SPI.begin();                            // begin SPI
@@ -96,16 +91,48 @@ void setup()
   // call config command... options can be seen in the PlayingWithFusion_MAX31856.h file
   thermocouple0.MAX31856_config(K_TYPE, CUTOFF_60HZ, AVG_SEL_4SAMP, CMODE_AUTO);
   thermocouple1.MAX31856_config(K_TYPE, CUTOFF_60HZ, AVG_SEL_4SAMP, CMODE_AUTO);
+
+  pinMode(ledPin, OUTPUT); // button set up
+  pinMode(buttonStart, INPUT_PULLUP);  
+  pinMode(buttonStop, INPUT_PULLUP);
+  
+// ##### Readout Labels ################################################
+// #####################################################################
+  Serial.print("Press ON to start. ");
+  Serial.print("Target Temp is ");
+  Serial.print(targetTemp);
+  Serial.print("oC. ");
+  Serial.print(tmpOffset);
+  Serial.print("% adjust ");
+  Serial.print(";");
+  Serial.println();  
+// #####################################################################
+// #####################################################################
+
 }
 
-void loop()
-{
-  
+void loop(){
+
+// ##### Button trigger ##############################    
+  while (trigger == false){
+    if (digitalRead(buttonStart) == LOW){
+      digitalWrite(ledPin, HIGH);
+      trigger = true;
+    } else if (digitalRead(buttonStop) == LOW){
+      digitalWrite(ledPin, LOW);
+      trigger = false;
+    }
+ 
+    delay (1000);
+    startTime = millis();  
+  }
+
+// ##### Thermocouple code ##############################  
   delay(500);                                   // 500ms delay... can be as fast as ~100ms in continuous mode, 1 samp avg
   
   static struct var_max31856 TC_CH0, TC_CH1;
-  double tmp0;
-  double tmp1; // I added a second temp variable so I can distinguish for PWM control 
+  double tmp0; // thermocouple #1
+  double tmp1; // thermocouple #2
    
   struct var_max31856 *tc_ptr;
   
@@ -117,10 +144,10 @@ void loop()
   thermocouple1.MAX31856_update(tc_ptr);        // Update MAX31856 channel 1
   
   
-  // ##### Print information to serial port ####
-  
+// ##### Print information to serial port ##############################
+
   // Thermocouple channel 0
-  Serial.print("Tmp0; ");            // Print TC0 header
+  Serial.print("Int-Tmp;");            // Print TC0 header
   if(TC_CH0.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -149,11 +176,11 @@ void loop()
     // MAX31856 External (thermocouple) Temp
     tmp0 = (double)TC_CH0.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
     Serial.print(tmp0); // print temperature sensor 0 
-    Serial.print(" ");
+    Serial.print("; ");
   }
 
   // Thermocouple channel 1
-  Serial.print("Tmp1; ");            // Print TC0 header
+  Serial.print("Ext-Tmp;");            // Print TC0 header
   if(TC_CH1.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -168,7 +195,7 @@ void loop()
     if(0x20 & TC_CH1.status){Serial.print("CJ High  ");}
     if(0x40 & TC_CH1.status){Serial.print("TC Range  ");}
     if(0x80 & TC_CH1.status){Serial.print("CJ Range  ");}
-    Serial.println("");
+    Serial.println(" ");
   }
   else  // no fault, print temperature data
   {
@@ -179,30 +206,108 @@ void loop()
     // MAX31856 External (thermocouple) Temp
     tmp1 = (double)TC_CH1.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
     Serial.print(tmp1); // print temperature sensor 1
-    Serial.print(" ");
+    Serial.print("; ");
   }
 
- 
-//PWM control   
-  tempPercent = ((targetTemp - tmp0)/targetTemp) * 100; //determine the amount of off target based on the time the assay is running 
-  rateAdjust = ((tempPercent) * 0.4) + 13; // ??secs
+  float currentTime = (millis() - startTime)/1000.0;
+  
+// ################ PWM control ########################################
 
-  if(tempPercent < 0) { //constrain scaling to 255 
-    constRateAdjust = 12; 
+  tempPercent = ((caliTargetTemp - tmp0)/caliTargetTemp) * 100; 
+  proportion = caliTargetTemp - tmp0; 
+  
+  if (tempPercent <= 0) {
+    assayMax = true; //sets when the ramp PWM should switch to hold PWM
+  }
+
+  if (currentTime < beginningHold){
+    rateAdjust = 0;
+  } else {
+    
+    integralActual += proportion;
+    integralFunctional = integralActual; 
+  
+    if (integralActual > maxIntegral)
+      integralFunctional = maxIntegral;
+    else if (integralActual < -maxIntegral)
+      integralFunctional = -maxIntegral;  
+  }
+  
+  if (assayMax == false & currentTime > beginningHold) { 
+    digitalWrite(URC10_MOTOR_1_DIR, tempDirection);
+    rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
+  } else if (assayMax == true) { 
+    if (holdMax == false) {
+      startHold = currentTime;
+      holdMax = true;
+    }
+    
+    float holdTargetCount = currentTime - startHold;
+    
+    if (holdTargetCount <= holdTarget){
+      digitalWrite(URC10_MOTOR_1_DIR, tempDirection);
+      rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
+      } 
+    else if (holdTargetCount > holdTarget){ //end thermal cycle 
+      rateAdjust = 0;
+      }    
+  }
+
+  if(rateAdjust > 50) { //constrain scaling to not burn wire 
+    constRateAdjust = 50; 
+  } else if (rateAdjust < 0){
+    constRateAdjust = 0;
   } else {
     constRateAdjust = rateAdjust;
-  } 
+  }
 
-  //set PWM byte from poynomial scaling 
-  M1ArrayPower = (byte) constRateAdjust;
+  if (endHeat == true){
+    constRateAdjust = 0;
+  }
 
-  digitalWrite(URC10_MOTOR_1_DIR, 1);
-  analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);
+  M1ArrayPower = (byte) constRateAdjust;  //set PWM byte from polynomial scaling 
 
-  Serial.print("PWM; ");
+  
+  /* //Trouble Shooting  
+  Serial.print("integralActual;");
+  Serial.print(integralActual);
+  Serial.print("; ");
+  Serial.print("integralFunctional;");
+  Serial.print(integralFunctional);
+  */
+  
+  Serial.print("PWM;");
   Serial.print(M1ArrayPower);
-  Serial.print(" ");
-  Serial.print("T%; ");
-  Serial.print(tempPercent);
+  Serial.print("; ");
+  Serial.print("Sec;");
+  Serial.print(currentTime);
   Serial.println();
+
+  float diffPercent = ((tmp0-tmp1) / tmp0) * 100;
+  float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
+  Serial.print(" ");
+  Serial.print("diff%; ");
+  Serial.print(diffPercent);
+  Serial.print(" ");
+  Serial.print("target%; ");
+  Serial.print(diffTarget);
+  Serial.println();
+  
+  analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to Peltiers 
+
+  if (digitalRead(buttonStop) == LOW){
+    digitalWrite(ledPin, LOW);
+    endHeat = true;
+    Serial.print("END");
+  }
+  
+  if (currentTime > assayTime){
+    Serial.print("DONE;");
+  }
+  
+  while (currentTime > assayTime){ //end program when assay length is done and hold in loop 
+    analogWrite(URC10_MOTOR_1_PWM, 0); //turn peltier off 
+    digitalWrite(ledPin, LOW);
+    delay (1000);
+  }
 }
