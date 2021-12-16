@@ -12,8 +12,8 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-int targetTemp = 42; //final temp of the ramp
-float tmpOffset = 1.03; //
+int targetTemp = 46; //final temp of the ramp
+float tmpOffset = 1; //
 int beginningHold = 0; //time before PWM begins UNIT = seconds 
 float holdTarget = 600; //length of time that target temp held UNIT = seconds 
 float assayTime = 800; //total assay time (beginningHold+ramp+holdTarget+extra) UNIT = seconds 
@@ -59,6 +59,8 @@ float integralFunctional;
 int ledPin = 9; // button set up
 int buttonStart = A0;
 int buttonStop = A1;
+int buttonUp = A2;
+int buttonDown = A3;
 
 byte leds = 0;
 bool trigger = false;
@@ -95,15 +97,15 @@ void setup(){
   pinMode(ledPin, OUTPUT); // button set up
   pinMode(buttonStart, INPUT_PULLUP);  
   pinMode(buttonStop, INPUT_PULLUP);
+  pinMode(buttonUp, INPUT_PULLUP);
+  pinMode(buttonDown, INPUT_PULLUP);
   
 // ##### Readout Labels ################################################
 // #####################################################################
   Serial.print("Press ON to start. ");
   Serial.print("Target Temp is ");
   Serial.print(targetTemp);
-  Serial.print("oC. ");
-  Serial.print(tmpOffset);
-  Serial.print("% adjust ");
+  Serial.print("oC");
   Serial.print(";");
   Serial.println();  
 // #####################################################################
@@ -279,34 +281,46 @@ void loop(){
   Serial.print("PWM;");
   Serial.print(M1ArrayPower);
   Serial.print("; ");
-  Serial.print("Sec;");
-  Serial.print(currentTime);
-  Serial.println();
 
   float diffPercent = ((tmp0-tmp1) / tmp0) * 100;
   float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
-  Serial.print(" ");
+  
   Serial.print("diff%; ");
   Serial.print(diffPercent);
-  Serial.print(" ");
-  Serial.print("target%; ");
+  Serial.print(" target%; ");
   Serial.print(diffTarget);
+  Serial.print(" Offset; ");
+  Serial.print(tmpOffset);
+  Serial.print(";");
+  Serial.print(" Time;");
+  Serial.print(currentTime);
+  Serial.print(";");
   Serial.println();
   
-  analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to Peltiers 
+  analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to magnet wire 
 
   if (digitalRead(buttonStop) == LOW){
     digitalWrite(ledPin, LOW);
     endHeat = true;
     Serial.print("END");
   }
+
+  if (digitalRead(buttonUp) == LOW){
+    tmpOffset = tmpOffset + 0.05;
+  }
+
+  if (digitalRead(buttonDown) == LOW){
+    tmpOffset = tmpOffset - 0.05;
+  }
+
+  caliTargetTemp = targetTemp * tmpOffset;
   
   if (currentTime > assayTime){
     Serial.print("DONE;");
   }
   
   while (currentTime > assayTime){ //end program when assay length is done and hold in loop 
-    analogWrite(URC10_MOTOR_1_PWM, 0); //turn peltier off 
+    analogWrite(URC10_MOTOR_1_PWM, 0); //turn wire off 
     digitalWrite(ledPin, LOW);
     delay (1000);
   }
