@@ -99,7 +99,7 @@ void setup(){
   pinMode(buttonStop, INPUT_PULLUP);
   pinMode(buttonUp, INPUT_PULLUP);
   pinMode(buttonDown, INPUT_PULLUP);
-  
+/*  
 // ##### Readout Labels ################################################
 // #####################################################################
   Serial.print("Press ON to start. ");
@@ -110,7 +110,7 @@ void setup(){
   Serial.println();  
 // #####################################################################
 // #####################################################################
-
+*/
 }
 
 void loop(){
@@ -149,7 +149,7 @@ void loop(){
 // ##### Print information to serial port ##############################
 
   // Thermocouple channel 0
-  Serial.print("Int-Tmp;");            // Print TC0 header
+  Serial.print("Int-Tmp:");            // Print TC0 header
   if(TC_CH0.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -178,11 +178,11 @@ void loop(){
     // MAX31856 External (thermocouple) Temp
     tmp0 = (double)TC_CH0.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
     Serial.print(tmp0); // print temperature sensor 0 
-    Serial.print("; ");
+    Serial.print(",");
   }
 
   // Thermocouple channel 1
-  Serial.print("Ext-Tmp;");            // Print TC0 header
+  Serial.print("Ext-Tmp:");            // Print TC0 header
   if(TC_CH1.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -208,7 +208,7 @@ void loop(){
     // MAX31856 External (thermocouple) Temp
     tmp1 = (double)TC_CH1.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
     Serial.print(tmp1); // print temperature sensor 1
-    Serial.print("; ");
+    Serial.print(",");
   }
 
   float currentTime = (millis() - startTime)/1000.0;
@@ -276,25 +276,34 @@ void loop(){
   Serial.print("; ");
   Serial.print("integralFunctional;");
   Serial.print(integralFunctional);
-  */
   
   Serial.print("PWM;");
   Serial.print(M1ArrayPower);
   Serial.print("; ");
-
-  float diffPercent = ((tmp0-tmp1) / tmp0) * 100;
-  float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
-  
-  Serial.print("diff%; ");
-  Serial.print(diffPercent);
-  Serial.print(" target%; ");
-  Serial.print(diffTarget);
-  Serial.print(" Offset; ");
-  Serial.print(tmpOffset);
   Serial.print(";");
   Serial.print(" Time;");
   Serial.print(currentTime);
   Serial.print(";");
+  */
+  
+
+
+  float diffPercent = ((tmp0-tmp1) / tmp0) * 100;
+  float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
+  
+  //Serial.print("diff%:");
+  //Serial.print(diffPercent);
+  Serial.print(",");
+  Serial.print("target%:");
+  Serial.print(diffTarget);
+  Serial.print(",");
+
+  float displayOffset = (tmpOffset-1) * 100;
+  
+  Serial.print("Offset:");
+  Serial.print(displayOffset);
+
+  
   Serial.println();
   
   analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to magnet wire 
