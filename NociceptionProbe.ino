@@ -12,7 +12,7 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-int targetTemp = 46; //final temp of the ramp
+int targetTemp = 52; //final temp of the ramp
 float tmpOffset = 1; //
 int beginningHold = 0; //time before PWM begins UNIT = seconds 
 float holdTarget = 600; //length of time that target temp held UNIT = seconds 
@@ -21,7 +21,7 @@ float assayTime = 800; //total assay time (beginningHold+ramp+holdTarget+extra) 
 // #####################################################################
 
 float caliTargetTemp = targetTemp * tmpOffset;
-
+int PWMmax = 50; //constrain scaling to not burn wire 
 bool assayMax = false; 
 bool holdMax = false;
 bool endHeat = false;
@@ -50,7 +50,7 @@ float proportion;
 float cProportion = 100 / caliTargetTemp * 1.4; //testing
 //float cProportion = 25.788 * pow(caliTargetTemp,-0.549); //this works for 4 and 38 to 46oc
 float cIntegral = cProportion / 10.0;
-float maxIntegral = 50; //testing
+float maxIntegral = 150; //testing
 //float maxIntegral = 0.1418 * pow(caliTargetTemp,2) - 5.6618 * caliTargetTemp + 100.38; //this works for 4 and 38 to 46oc
 float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
 float integralFunctional;
@@ -255,8 +255,8 @@ void loop(){
       }    
   }
 
-  if(rateAdjust > 50) { //constrain scaling to not burn wire 
-    constRateAdjust = 50; 
+  if(rateAdjust > PWMmax) { //constrain scaling to not burn wire 
+    constRateAdjust = PWMmax; 
   } else if (rateAdjust < 0){
     constRateAdjust = 0;
   } else {
@@ -269,8 +269,8 @@ void loop(){
 
   M1ArrayPower = (byte) constRateAdjust;  //set PWM byte from polynomial scaling 
 
-  
-  /* //Trouble Shooting  
+  /*
+  //Trouble Shooting  
   Serial.print("integralActual;");
   Serial.print(integralActual);
   Serial.print("; ");
@@ -280,20 +280,17 @@ void loop(){
   Serial.print("PWM;");
   Serial.print(M1ArrayPower);
   Serial.print("; ");
-  Serial.print(";");
-  Serial.print(" Time;");
-  Serial.print(currentTime);
-  Serial.print(";");
+  //Serial.print(" Time;");
+  //Serial.print(currentTime);
+  //Serial.print(";");
   */
-  
-
 
   float diffPercent = ((tmp0-tmp1) / tmp0) * 100;
   float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
   
   //Serial.print("diff%:");
   //Serial.print(diffPercent);
-  Serial.print(",");
+  //Serial.print(",");
   Serial.print("target%:");
   Serial.print(diffTarget);
   Serial.print(",");
@@ -302,7 +299,6 @@ void loop(){
   
   Serial.print("Offset:");
   Serial.print(displayOffset);
-
   
   Serial.println();
   
@@ -311,6 +307,7 @@ void loop(){
   if (digitalRead(buttonStop) == LOW){
     digitalWrite(ledPin, LOW);
     endHeat = true;
+    Serial.println();
     Serial.print("END");
   }
 
@@ -325,6 +322,7 @@ void loop(){
   caliTargetTemp = targetTemp * tmpOffset;
   
   if (currentTime > assayTime){
+    Serial.println();
     Serial.print("DONE;");
   }
   
