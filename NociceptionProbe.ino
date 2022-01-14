@@ -111,6 +111,7 @@ void setup(){
 // #####################################################################
 // #####################################################################
 */
+  Serial.println("Int-Temp, Ext-Temp, Target%, Offset"); 
 }
 
 void loop(){
@@ -149,7 +150,7 @@ void loop(){
 // ##### Print information to serial port ##############################
 
   // Thermocouple channel 0
-  Serial.print("Int-Tmp:");            // Print TC0 header
+  //Serial.print("Int-Tmp ");            // Print TC0 header
   if(TC_CH0.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -182,7 +183,7 @@ void loop(){
   }
 
   // Thermocouple channel 1
-  Serial.print("Ext-Tmp:");            // Print TC0 header
+  //Serial.print("Ext-Tmp ");            // Print TC0 header
   if(TC_CH1.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -288,16 +289,16 @@ void loop(){
   float diffPercent = ((tmp0-tmp1) / tmp0) * 100;
   float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
   
-  //Serial.print("diff%:");
+  //Serial.print("diff% ");
   //Serial.print(diffPercent);
   //Serial.print(",");
-  Serial.print("target%:");
+  //Serial.print("target% ");
   Serial.print(diffTarget);
   Serial.print(",");
 
   float displayOffset = (tmpOffset-1) * 100;
   
-  Serial.print("Offset:");
+  //Serial.print("Offset ");
   Serial.print(displayOffset);
   
   Serial.println();
