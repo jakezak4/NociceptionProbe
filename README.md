@@ -5,7 +5,7 @@ Built by Jacob Jaszczak
 
 *Installation and Startup* 
 
-1) Install microcontroler driver. The board URC10 uses CH340G USB to UART converter. Download Windows driver here: http://sparks.gogo.co.nz/assets/_site_/downloads/CH34x_Install_Windows_v3_4.zip  
+1) Install microcontroler driver. The board URC10 uses CH340G USB to UART converter. Download Windows driver here (copy-paste link): http://sparks.gogo.co.nz/assets/_site_/downloads/CH34x_Install_Windows_v3_4.zip  
 For MAC and Linux, see URC10 Cytron manual. 
 
 2) Install Arduino IDE 
