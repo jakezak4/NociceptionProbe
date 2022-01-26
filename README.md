@@ -5,11 +5,11 @@ Built by Jacob Jaszczak
 
 *Installation and Startup* 
 
-1) Install microcontroler driver. The board URC10 uses CH340G USB to UART converter. Download Windows driver here (copy-paste link): http://sparks.gogo.co.nz/assets/_site_/downloads/CH34x_Install_Windows_v3_4.zip  
-For MAC and Linux, see URC10 Cytron manual. 
-
-2) Install Arduino IDE 
+1) Install Arduino IDE 
 https://www.arduino.cc/en/software
+
+2) Install microcontroler driver. The board URC10 uses CH340G USB to UART converter. Download Windows driver here (copy-paste link): http://sparks.gogo.co.nz/assets/_site_/downloads/CH34x_Install_Windows_v3_4.zip  
+For MAC and Linux, see URC10 Cytron manual. 
 
 3) Download and copy files in thermocouple libraries to the Arduino libraries folder as subfolder "PWFusion_MAX31856"  
 	2A: Create folder "PWFusion_MAX31856" in "libraries" directory  
@@ -50,8 +50,8 @@ https://www.arduino.cc/en/software
 *Running Temperature Treatment Program* 
 
 1) Before running program:  
-	1A: ?
-  1B: ? 
+	1A: open SerialPlotAndLog 
+  	1B: reset microcontroller 
 
 2) Press the START button to begin program. The LED will turn on. 
 
