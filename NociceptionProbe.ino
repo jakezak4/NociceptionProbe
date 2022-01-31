@@ -12,15 +12,15 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-int targetTemp = 52; //final temp of the ramp
-float tmpOffset = 1; //
+int targetTemp = 46; //final temp of the ramp
 int beginningHold = 0; //time before PWM begins UNIT = seconds 
-float holdTarget = 600; //length of time that target temp held UNIT = seconds 
-float assayTime = 800; //total assay time (beginningHold+ramp+holdTarget+extra) UNIT = seconds 
+float holdTarget = 3600; //length of time that target temp held UNIT = seconds 
+float assayTime = 3900; //total assay time (beginningHold+ramp+holdTarget+extra) UNIT = seconds 
 // #####################################################################
 // #####################################################################
 
-float caliTargetTemp = targetTemp * tmpOffset;
+float tmpOffset = 0; //
+float caliTargetTemp = targetTemp + tmpOffset;
 int PWMmax = 50; //constrain scaling to not burn wire 
 bool assayMax = false; 
 bool holdMax = false;
@@ -111,7 +111,7 @@ void setup(){
 // #####################################################################
 // #####################################################################
 */
-  Serial.println("Int-Temp, Ext-Temp, Target%, Offset"); 
+  Serial.println("Int-Temp,Ext-Temp,Target%,Offset"); 
 }
 
 void loop(){
@@ -272,35 +272,21 @@ void loop(){
 
   /*
   //Trouble Shooting  
-  Serial.print("integralActual;");
-  Serial.print(integralActual);
-  Serial.print("; ");
-  Serial.print("integralFunctional;");
-  Serial.print(integralFunctional);
-  
   Serial.print("PWM;");
   Serial.print(M1ArrayPower);
   Serial.print("; ");
-  //Serial.print(" Time;");
-  //Serial.print(currentTime);
-  //Serial.print(";");
+  Serial.print(" Time;");
+  Serial.print(currentTime);
+  Serial.print(";");
+  //Trouble Shooting 
   */
 
-  float diffPercent = ((tmp0-tmp1) / tmp0) * 100;
   float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
   
-  //Serial.print("diff% ");
-  //Serial.print(diffPercent);
-  //Serial.print(",");
-  //Serial.print("target% ");
   Serial.print(diffTarget);
-  Serial.print(",");
+  Serial.print(","); 
+  Serial.print(tmpOffset,0);
 
-  float displayOffset = (tmpOffset-1) * 100;
-  
-  //Serial.print("Offset ");
-  Serial.print(displayOffset);
-  
   Serial.println();
   
   analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to magnet wire 
@@ -309,22 +295,22 @@ void loop(){
     digitalWrite(ledPin, LOW);
     endHeat = true;
     Serial.println();
-    Serial.print("END");
+    Serial.print("END,");
   }
 
   if (digitalRead(buttonUp) == LOW){
-    tmpOffset = tmpOffset + 0.05;
+    tmpOffset = tmpOffset + 0.5;
   }
 
   if (digitalRead(buttonDown) == LOW){
-    tmpOffset = tmpOffset - 0.05;
+    tmpOffset = tmpOffset - 0.5;
   }
 
-  caliTargetTemp = targetTemp * tmpOffset;
+  caliTargetTemp = targetTemp + tmpOffset;
   
   if (currentTime > assayTime){
     Serial.println();
-    Serial.print("DONE;");
+    Serial.print("DONE,");
   }
   
   while (currentTime > assayTime){ //end program when assay length is done and hold in loop 
