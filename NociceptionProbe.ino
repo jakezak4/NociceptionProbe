@@ -12,20 +12,15 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-int targetTemp = 46; //final temp of the ramp
-int beginningHold = 0; //time before PWM begins UNIT = seconds 
-float holdTarget = 3600; //length of time that target temp held UNIT = seconds 
-float assayTime = 3900; //total assay time (beginningHold+ramp+holdTarget+extra) UNIT = seconds 
+int targetTemp = 46; //target temperature of inside probe 
+float assayTime = 60*120; // 2hrs in seconds 
 // #####################################################################
 // #####################################################################
 
-float tmpOffset = 0; //
+float tmpOffset = 0; //changes target temp by 0.5oC
 float caliTargetTemp = targetTemp + tmpOffset;
-int PWMmax = 50; //constrain scaling to not burn wire 
-bool assayMax = false; 
-bool holdMax = false;
+int PWMmax = 50; //constrain scaling to not burn magnet wire 
 bool endHeat = false;
-float startHold = 0; 
 
 //Playing With Fusion breakout 
 
@@ -48,10 +43,8 @@ int constRateAdjust; // contrained to 0-255
 // PID variables 
 float proportion;
 float cProportion = 100 / caliTargetTemp * 1.4; //testing
-//float cProportion = 25.788 * pow(caliTargetTemp,-0.549); //this works for 4 and 38 to 46oc
 float cIntegral = cProportion / 10.0;
 float maxIntegral = 150; //testing
-//float maxIntegral = 0.1418 * pow(caliTargetTemp,2) - 5.6618 * caliTargetTemp + 100.38; //this works for 4 and 38 to 46oc
 float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
 float integralFunctional;
 
@@ -99,24 +92,14 @@ void setup(){
   pinMode(buttonStop, INPUT_PULLUP);
   pinMode(buttonUp, INPUT_PULLUP);
   pinMode(buttonDown, INPUT_PULLUP);
-/*  
-// ##### Readout Labels ################################################
-// #####################################################################
-  Serial.print("Press ON to start. ");
-  Serial.print("Target Temp is ");
-  Serial.print(targetTemp);
-  Serial.print("oC");
-  Serial.print(";");
-  Serial.println();  
-// #####################################################################
-// #####################################################################
-*/
-  Serial.println("Int-Temp,Ext-Temp,Target%,Offset"); 
+
+  //Serial.println("Int-Temp,Ext-Temp,Target%,Offset"); 
+  Serial.println("Int-Temp,Ext-Temp,Target%,Offset,PWM"); //Trouble shooting
 }
 
 void loop(){
 
-// ##### Button trigger ##############################    
+// ##### Start Button trigger ##############################    
   while (trigger == false){
     if (digitalRead(buttonStart) == LOW){
       digitalWrite(ledPin, HIGH);
@@ -147,7 +130,7 @@ void loop(){
   thermocouple1.MAX31856_update(tc_ptr);        // Update MAX31856 channel 1
   
   
-// ##### Print information to serial port ##############################
+// ##### Print thermo information to serial port ##############################
 
   // Thermocouple channel 0
   //Serial.print("Int-Tmp ");            // Print TC0 header
@@ -218,43 +201,17 @@ void loop(){
 
   tempPercent = ((caliTargetTemp - tmp0)/caliTargetTemp) * 100; 
   proportion = caliTargetTemp - tmp0; 
-  
-  if (tempPercent <= 0) {
-    assayMax = true; //sets when the ramp PWM should switch to hold PWM
-  }
 
-  if (currentTime < beginningHold){
-    rateAdjust = 0;
-  } else {
-    
-    integralActual += proportion;
-    integralFunctional = integralActual; 
+  integralActual += proportion;
+  integralFunctional = integralActual; 
+
+  if (integralActual > maxIntegral)
+    integralFunctional = maxIntegral;
+  else if (integralActual < -maxIntegral)
+    integralFunctional = -maxIntegral;  
   
-    if (integralActual > maxIntegral)
-      integralFunctional = maxIntegral;
-    else if (integralActual < -maxIntegral)
-      integralFunctional = -maxIntegral;  
-  }
-  
-  if (assayMax == false & currentTime > beginningHold) { 
-    digitalWrite(URC10_MOTOR_1_DIR, tempDirection);
-    rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
-  } else if (assayMax == true) { 
-    if (holdMax == false) {
-      startHold = currentTime;
-      holdMax = true;
-    }
-    
-    float holdTargetCount = currentTime - startHold;
-    
-    if (holdTargetCount <= holdTarget){
-      digitalWrite(URC10_MOTOR_1_DIR, tempDirection);
-      rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
-      } 
-    else if (holdTargetCount > holdTarget){ //end thermal cycle 
-      rateAdjust = 0;
-      }    
-  }
+  digitalWrite(URC10_MOTOR_1_DIR, tempDirection);
+  rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
 
   if(rateAdjust > PWMmax) { //constrain scaling to not burn wire 
     constRateAdjust = PWMmax; 
@@ -270,26 +227,29 @@ void loop(){
 
   M1ArrayPower = (byte) constRateAdjust;  //set PWM byte from polynomial scaling 
 
-  /*
+  analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to magnet wire 
+
+// ################ Print PWM control ########################################
+
+  float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
+
+  Serial.print(diffTarget);
+  Serial.print(","); 
+  Serial.print(tmpOffset,1);
+
   //Trouble Shooting  
-  Serial.print("PWM;");
+  Serial.print(",");
   Serial.print(M1ArrayPower);
-  Serial.print("; ");
-  Serial.print(" Time;");
+  /*
+  Serial.print(",");
   Serial.print(currentTime);
-  Serial.print(";");
+  Serial.print(",");
   //Trouble Shooting 
   */
 
-  float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
-  
-  Serial.print(diffTarget);
-  Serial.print(","); 
-  Serial.print(tmpOffset,0);
-
   Serial.println();
-  
-  analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to magnet wire 
+
+// ################ Assay controls ########################################
 
   if (digitalRead(buttonStop) == LOW){
     digitalWrite(ledPin, LOW);
@@ -307,15 +267,13 @@ void loop(){
   }
 
   caliTargetTemp = targetTemp + tmpOffset;
-  
-  if (currentTime > assayTime){
-    Serial.println();
-    Serial.print("DONE,");
-  }
-  
+
   while (currentTime > assayTime){ //end program when assay length is done and hold in loop 
     analogWrite(URC10_MOTOR_1_PWM, 0); //turn wire off 
     digitalWrite(ledPin, LOW);
-    delay (1000);
+    Serial.println();
+    Serial.print("DONE,");
+    delay (2000);
+    digitalWrite(ledPin, HIGH);
   }
 }
