@@ -9,6 +9,8 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 #include "PlayingWithFusion_MAX31856.h" //Playing With Fusion thermocouple breakout library 
 #include "PlayingWithFusion_MAX31856_STRUCT.h"  //Playing With Fusion thermocouple breakout library 
 #include "SPI.h"  //microcontroler library 
+#include "PID_v1.h" //v1.2.0 by Brett Beauregard
+
 
 // ##### Assay variables ###############################################
 // #####################################################################
@@ -35,18 +37,19 @@ PWF_MAX31856  thermocouple1(TC1_CS);
 int startDelay = 10000; //delay before PWM starts
 float startTime; //store time at which the program is started after button click 
 
-int tempPercent; //percent difference from sensor and target temp 
-int absTempPercent; //make all temp values positive 
-int rateAdjust; //adjusted rate of PWM power based
-int constRateAdjust; // contrained to 0-255 
+int limitOutput; // contrained to 0-255 
 
-// PID variables 
-float proportion;
-float cProportion = 100 / caliTargetTemp * 1.4; //testing
-float cIntegral = cProportion / 10.0;
-float maxIntegral = 150; //testing
-float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
-float integralFunctional;
+//PID 1.2.0 by B.B.
+//Define Variables we'll be connecting to
+double Setpoint, Input, Output;
+
+//Define the aggressive and conservative Tuning Parameters
+double aggKp=4, aggKi=0.2, aggKd=1;
+double consKp=1, consKi=0.05, consKd=0.25;
+
+//Specify the links and initial tuning parameters
+//P_ON_M specifies that Proportional on Measurement be used //P_ON_E (Proportional on Error) is the default behavior
+PID myPID(&Input, &Output, &Setpoint, consKp, consKi, consKd,P_ON_M, DIRECT);
 
 //Button controler settings 
 int ledPin = 9; // button set up
@@ -64,14 +67,6 @@ char peltierPower[4];
 
 #define URC10_MOTOR_1_DIR 4 // set motor for direction control for Peltier
 #define URC10_MOTOR_1_PWM 5 // set PWM for power control for Peltier
-
-#define URC10_MOTOR_2_DIR 7 // set motor for direction control for Fan
-#define URC10_MOTOR_2_PWM 6 // set PWM for power control for Fan
-
-#define COOL 0       // motor current direction for cooling effect 
-#define HEAT 1       // motor current direction for heating effect 
-
-int tempDirection = HEAT;
 
 void setup(){
   delay(250);                            // give chip a chance to stabilize
@@ -92,6 +87,14 @@ void setup(){
   pinMode(buttonStop, INPUT_PULLUP);
   pinMode(buttonUp, INPUT_PULLUP);
   pinMode(buttonDown, INPUT_PULLUP);
+
+  //PID 1.2.0
+  //initialize the variables we're linked to
+  Setpoint = caliTargetTemp;
+  //turn the PID on
+  myPID.SetMode(AUTOMATIC);
+
+  digitalWrite(URC10_MOTOR_1_DIR, 1); //Board motor controler current direction  
 
   //Serial.println("Int-Temp,Ext-Temp,Target%,Offset"); 
   Serial.println("Int-Temp,Ext-Temp,Target%,Offset,PWM"); //Trouble shooting
@@ -199,37 +202,37 @@ void loop(){
   
 // ################ PWM control ########################################
 
-  tempPercent = ((caliTargetTemp - tmp0)/caliTargetTemp) * 100; 
-  proportion = caliTargetTemp - tmp0; 
-
-  integralActual += proportion;
-  integralFunctional = integralActual; 
-
-  if (integralActual > maxIntegral)
-    integralFunctional = maxIntegral;
-  else if (integralActual < -maxIntegral)
-    integralFunctional = -maxIntegral;  
+  //PID 1.2.0
+  Setpoint = caliTargetTemp;
+  Input = tmp0;
+  double gap = abs(Setpoint-Input); //distance away from setpoint
   
-  digitalWrite(URC10_MOTOR_1_DIR, tempDirection);
-  rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
-
-  if(rateAdjust > PWMmax) { //constrain scaling to not burn wire 
-    constRateAdjust = PWMmax; 
-  } else if (rateAdjust < 0){
-    constRateAdjust = 0;
+  if(gap<10) {  //we're close to setpoint, use conservative tuning parameters
+    myPID.SetTunings(consKp, consKi, consKd);
   } else {
-    constRateAdjust = rateAdjust;
+     //we're far from setpoint, use aggressive tuning parameters
+     myPID.SetTunings(aggKp, aggKi, aggKd);
+  }
+  
+  myPID.Compute();
+
+  if(Output > PWMmax) { //constrain scaling to not burn wire 
+    limitOutput = PWMmax; 
+  } else if (Output < 0){
+    limitOutput = 0;
+  } else {
+    limitOutput = Output;
   }
 
   if (endHeat == true){
-    constRateAdjust = 0;
+    limitOutput = 0;
   }
-
-  M1ArrayPower = (byte) constRateAdjust;  //set PWM byte from polynomial scaling 
+  
+  M1ArrayPower = (byte) limitOutput;  //set PWM byte from polynomial scaling 
 
   analogWrite(URC10_MOTOR_1_PWM, M1ArrayPower);   //send PWM value to magnet wire 
 
-// ################ Print PWM control ########################################
+// ################ Print variables control ########################################
 
   float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
 
