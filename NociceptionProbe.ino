@@ -19,7 +19,7 @@ float assayTime = 60*120; // 2hrs in seconds
 // #####################################################################
 // #####################################################################
 
-float tmpOffset = 0; //changes target temp by 0.5oC
+float tmpOffset = 8; //changes target temp by 0.5oC
 float caliTargetTemp = targetTemp + tmpOffset;
 int PWMmax = 50; //constrain scaling to not burn magnet wire 
 bool endHeat = false;
@@ -44,8 +44,9 @@ int limitOutput; // contrained to 0-255
 double Setpoint, Input, Output;
 
 //Define the aggressive and conservative Tuning Parameters
-double aggKp=4, aggKi=0.2, aggKd=1;
-double consKp=1, consKi=0.05, consKd=0.25;
+int gapSet = 1;
+double aggKp=3, aggKi=0.5, aggKd=1;
+double consKp=2, consKi=0.05, consKd=0.25;
 
 //Specify the links and initial tuning parameters
 //P_ON_M specifies that Proportional on Measurement be used //P_ON_E (Proportional on Error) is the default behavior
@@ -140,7 +141,7 @@ void loop(){
   Input = tmp0;
   double gap = abs(Setpoint-Input); //distance away from setpoint
   
-  if(gap<10) {  //we're close to setpoint, use conservative tuning parameters
+  if(gap<gapSet) {  //we're close to setpoint, use conservative tuning parameters
     myPID.SetTunings(consKp, consKi, consKd);
   } else {
      //we're far from setpoint, use aggressive tuning parameters
@@ -191,7 +192,6 @@ void loop(){
     digitalWrite(ledPin, LOW);
     endHeat = true;
     Serial.println();
-    Serial.print("END,");
   }
 
   if (digitalRead(buttonUp) == LOW){
