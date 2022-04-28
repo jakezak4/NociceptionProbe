@@ -19,7 +19,7 @@ float assayTime = 60*120; // 2hrs in seconds
 // #####################################################################
 // #####################################################################
 
-float tmpOffset = 8; //changes target temp by 0.5oC
+float tmpOffset = 7.5; //changes target temp by 0.5oC
 float caliTargetTemp = targetTemp + tmpOffset;
 int PWMmax = 50; //constrain scaling to not burn magnet wire 
 bool endHeat = false;
