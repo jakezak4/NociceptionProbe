@@ -58,8 +58,9 @@ int buttonStart = A0;
 int buttonStop = A1;
 int buttonUp = A2;
 int buttonDown = A3;
+int videoPin = 8; //video input from rPi
 
-byte leds = 0;
+byte video_record = 0;
 bool trigger = false;
 
 //Motor controler settings 
@@ -88,6 +89,7 @@ void setup(){
   pinMode(buttonStop, INPUT_PULLUP);
   pinMode(buttonUp, INPUT_PULLUP);
   pinMode(buttonDown, INPUT_PULLUP);
+  pinMode(videoPin, INPUT); 
 
   //PID 1.2.0
   //initialize the variables we're linked to
@@ -100,8 +102,7 @@ void setup(){
   Serial.print("#Target temp is ");
   Serial.println(targetTemp);
   
-  //Serial.println("Int-Temp,Ext-Temp,Target%,Offset"); 
-  Serial.println("Int-Temp,Ext-Temp,Target%,Offset,PWM"); //Trouble shooting
+  Serial.println("Int-Temp,Ext-Temp,Target%,Offset,PWM,Video"); 
 }
 
 void loop(){
@@ -119,6 +120,13 @@ void loop(){
     delay (1000);
     startTime = millis();  
   }
+
+// ##### Video code ####################################
+  if (digitalRead(videoPin) == LOW){
+    video_record = 0 ;
+  } else if (digitalRead(videoPin) == HIGH){
+    video_record = 1 ;
+  }  
 
 // ##### Thermocouple code ##############################  
   delay(500);                                   // 500ms delay... can be as fast as ~100ms in continuous mode, 1 samp avg
@@ -173,17 +181,17 @@ void loop(){
   Serial.print(diffTarget);
   Serial.print(","); 
   Serial.print(tmpOffset,1);
-
-  //Trouble Shooting  
   Serial.print(",");
   Serial.print(M1ArrayPower);
+  Serial.print(",");
+  Serial.print(video_record);
+  //Trouble Shooting
   /*
   Serial.print(",");
   Serial.print(currentTime);
   Serial.print(",");
   //Trouble Shooting 
   */
-
   Serial.println();
 
 // ################ Assay controls ########################################
