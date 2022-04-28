@@ -15,11 +15,11 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 // ##### Assay variables ###############################################
 // #####################################################################
 int targetTemp = 46; //target temperature of inside probe 
-float assayTime = 60*120; // 2hrs in seconds 
+float assayTime = 60*240; // 4hrs in seconds 
 // #####################################################################
 // #####################################################################
 
-float tmpOffset = 7.5; //changes target temp by 0.5oC
+float tmpOffset = 0; //changes target temp by 0.5oC
 float caliTargetTemp = targetTemp + tmpOffset;
 int PWMmax = 50; //constrain scaling to not burn magnet wire 
 bool endHeat = false;
