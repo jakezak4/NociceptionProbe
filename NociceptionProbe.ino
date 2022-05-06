@@ -14,15 +14,27 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
+<<<<<<< Updated upstream
 
 int targetTemp = 46; //target temperature of inside probe 
 int plateTemp = 46; //temperature of calibration plate
+=======
+int Probe_targetTemp = 46; //target temperature of inside probe 
+int Plate_targetTemp = 46; //temperature of calibration plate
+>>>>>>> Stashed changes
 float assayTime = 60*240; // 4hrs in seconds 
 // #####################################################################
 // #####################################################################
 
+<<<<<<< Updated upstream
 float tmpOffset = 0; //changes target temp by 0.5oC
 float caliTargetTemp = targetTemp + tmpOffset;
+=======
+float probeOffset = 0; //changes target temp by 0.5oC
+float plateOffset = 0; //changes target temp by 0.5oC
+float caliProbe_targetTemp = Probe_targetTemp + probeOffset;
+float caliPlate_targetTemp = Plate_targetTemp + plateOffset;
+>>>>>>> Stashed changes
 int PWMmax = 100; //constrain scaling to not burn magnet wire 
 int holdingPWM = 0; // Store PWM to hold power for calibration 
 bool calibration = false; 
@@ -55,7 +67,11 @@ int absTempPercent; //make all temp values positive
 int rateAdjust; //adjusted rate of PWM power based
 
 float proportion;
+<<<<<<< Updated upstream
 float cProportion = 370 / targetTemp * 1.6; //testing
+=======
+float cProportion = 370 / Probe_targetTemp * 1.6; //testing
+>>>>>>> Stashed changes
 float cIntegral = cProportion / 20.0;
 float maxIntegral = 200; //testing
 float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
@@ -91,6 +107,7 @@ bool trigger = false;
 //Motor controler settings 
 byte M1ArrayPower = 0; //Motor1 Array of Magnet wire 
 byte M2ArrayPower = 0; //Motor1 Array of Peltier 
+<<<<<<< Updated upstream
 
 #define URC10_MOTOR_1_DIR 4 // set motor for direction control for Magnet wire
 #define URC10_MOTOR_1_PWM 5 // set PWM for power control for Magnet wire
@@ -98,6 +115,15 @@ byte M2ArrayPower = 0; //Motor1 Array of Peltier
 #define URC10_MOTOR_2_DIR 7 // set motor for direction control for Peltier
 #define URC10_MOTOR_2_PWM 6 // set PWM for power control for Peltier 
 
+=======
+
+#define URC10_MOTOR_1_DIR 4 // set motor for direction control for Magnet wire
+#define URC10_MOTOR_1_PWM 5 // set PWM for power control for Magnet wire
+
+#define URC10_MOTOR_2_DIR 7 // set motor for direction control for Peltier
+#define URC10_MOTOR_2_PWM 6 // set PWM for power control for Peltier 
+
+>>>>>>> Stashed changes
 #define COOL 0       // motor current direction for cooling effect 
 #define HEAT 1       // motor current direction for heating effect 
 
@@ -133,14 +159,14 @@ void setup(){
 
   //PID 1.2.0
   //initialize the variables we're linked to
-  Setpoint = caliTargetTemp;
+  Setpoint = caliProbe_targetTemp;
   //turn the PID on
   myPID.SetMode(AUTOMATIC);   
 
   Serial.print("#Target temp is ");
-  Serial.println(targetTemp);
+  Serial.println(Probe_targetTemp);
   
-  Serial.println("Int-Temp,Ext-Temp,Target%,Offset,PWM,Video"); 
+  Serial.println("Int-Temp,Ext-Temp,T%Probe,T%Plate,probeOffset,plateOffset,PWM,Video"); 
 }
 
 void loop(){
@@ -184,7 +210,11 @@ void loop(){
   float currentTime = (millis() - startTime)/1000.0;
 
 // ################ Range LEDs ########################################
+<<<<<<< Updated upstream
   if ((caliTargetTemp-tmp0) > 0.5){
+=======
+  if ((caliProbe_targetTemp-tmp0) > 0.5){
+>>>>>>> Stashed changes
     //digitalWrite(rangeGoLED, LOW);
     //digitalWrite(rangeStopLED, HIGH);
   } else {
@@ -204,7 +234,7 @@ void loop(){
 // ################ PWM control ########################################
 
   //PID 1.2.0
-  Setpoint = caliTargetTemp;
+  Setpoint = caliProbe_targetTemp;
   Input = tmp0;
   double gap = abs(Setpoint-Input); //distance away from setpoint
   
@@ -228,15 +258,24 @@ void loop(){
 
     if (enterPWMhold == false && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
       digitalWrite(PWMLED, HIGH);
+<<<<<<< Updated upstream
       holdingPWM = limitWireOutput; 
+=======
+      //holdingPWM = limitWireOutput; 
+>>>>>>> Stashed changes
       enterPWMhold = true;
     } else if (enterPWMhold == true && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
       digitalWrite(PWMLED, LOW);
       enterPWMhold = false;
     }      
     
+<<<<<<< Updated upstream
     tempPercent = ((plateTemp - tmp1)/plateTemp) * 100; 
     proportion = plateTemp - tmp1; 
+=======
+    tempPercent = ((caliPlate_targetTemp - tmp1)/caliPlate_targetTemp) * 100; 
+    proportion = caliPlate_targetTemp - tmp1; 
+>>>>>>> Stashed changes
       
     integralActual += proportion;
     integralFunctional = integralActual; 
@@ -274,6 +313,7 @@ void loop(){
   if (enterPWMhold == false){
     M1ArrayPower = (byte) limitWireOutput;  //set PWM byte from polynomial scaling 
   } else if (enterPWMhold == true){
+<<<<<<< Updated upstream
     digitalWrite(PWMLED, HIGH);
     if (digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == HIGH){
       holdingPWM = holdingPWM + 1;
@@ -282,6 +322,10 @@ void loop(){
       holdingPWM = holdingPWM - 1;
     }
     M1ArrayPower = (byte) holdingPWM;
+=======
+    //M1ArrayPower = (byte) holdingPWM;
+    M1ArrayPower = (byte) limitWireOutput;
+>>>>>>> Stashed changes
   }
 
   digitalWrite(URC10_MOTOR_1_DIR, 1); //Board motor controler current direction for magnet wire
@@ -293,11 +337,16 @@ void loop(){
 
 // ################ Print variables control ########################################
 
-  float diffTarget = ((targetTemp-tmp1) / targetTemp) * 100;
+  float diffProbeTarget = ((caliProbe_targetTemp-tmp0) / caliProbe_targetTemp) * 100;
+  float diffPlateTarget = ((caliPlate_targetTemp-tmp1) / caliPlate_targetTemp) * 100;
 
-  Serial.print(diffTarget);
+  Serial.print(diffProbeTarget);
   Serial.print(","); 
-  Serial.print(tmpOffset,1);
+  Serial.print(diffPlateTarget);
+  Serial.print(","); 
+  Serial.print(probeOffset,1);
+  Serial.print(",");
+  Serial.print(plateOffset,1);
   Serial.print(",");
   Serial.print(M1ArrayPower);
   Serial.print(",");
@@ -324,14 +373,36 @@ void loop(){
 
   if (enterPWMhold == false){
     if (digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == HIGH){
+<<<<<<< Updated upstream
       tmpOffset = tmpOffset + 0.5;
     }
     if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
       tmpOffset = tmpOffset - 0.5;
+=======
+      probeOffset = probeOffset + 0.5;
+    }
+    if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
+      probeOffset = probeOffset - 0.5;
+    }
+  } else if (enterPWMhold == true){
+    if (digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == HIGH){
+      plateOffset = plateOffset + 0.5;
+    }
+    if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
+      plateOffset = plateOffset - 0.5;
+    }
+
+    if (digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == HIGH){
+      holdingPWM = holdingPWM + 1;
+    }
+    if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
+      holdingPWM = holdingPWM - 1;
+>>>>>>> Stashed changes
     }
   }
 
-  caliTargetTemp = targetTemp + tmpOffset;
+  caliProbe_targetTemp = Probe_targetTemp + probeOffset;
+  caliPlate_targetTemp = Plate_targetTemp + plateOffset;
 
   while (currentTime > assayTime){ //end program when assay length is done and hold in loop 
     analogWrite(URC10_MOTOR_1_PWM, 0); //turn wire off 
