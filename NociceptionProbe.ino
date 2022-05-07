@@ -14,28 +14,17 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-<<<<<<< Updated upstream
-
-int targetTemp = 46; //target temperature of inside probe 
-int plateTemp = 46; //temperature of calibration plate
-=======
 int Probe_targetTemp = 46; //target temperature of inside probe 
-int Plate_targetTemp = 46; //temperature of calibration plate
->>>>>>> Stashed changes
+int Plate_targetTemp = 25; //temperature of calibration plate
 float assayTime = 60*240; // 4hrs in seconds 
 // #####################################################################
 // #####################################################################
 
-<<<<<<< Updated upstream
-float tmpOffset = 0; //changes target temp by 0.5oC
-float caliTargetTemp = targetTemp + tmpOffset;
-=======
 float probeOffset = 0; //changes target temp by 0.5oC
 float plateOffset = 0; //changes target temp by 0.5oC
 float caliProbe_targetTemp = Probe_targetTemp + probeOffset;
 float caliPlate_targetTemp = Plate_targetTemp + plateOffset;
->>>>>>> Stashed changes
-int PWMmax = 100; //constrain scaling to not burn magnet wire 
+int PWMmax = 150; //constrain scaling to not burn magnet wire 
 int holdingPWM = 0; // Store PWM to hold power for calibration 
 bool calibration = false; 
 bool enterPWMhold = false;
@@ -50,10 +39,7 @@ PWF_MAX31856  thermocouple0(TC0_CS);
 PWF_MAX31856  thermocouple1(TC1_CS);
 
 //Program variables 
-
-int startDelay = 10000; //delay before PWM starts
 float startTime; //store time at which the program is started after button click 
-
 int limitWireOutput; // contrained to 0-255 
 int limitPeltierOutput;
 
@@ -67,11 +53,7 @@ int absTempPercent; //make all temp values positive
 int rateAdjust; //adjusted rate of PWM power based
 
 float proportion;
-<<<<<<< Updated upstream
-float cProportion = 370 / targetTemp * 1.6; //testing
-=======
 float cProportion = 370 / Probe_targetTemp * 1.6; //testing
->>>>>>> Stashed changes
 float cIntegral = cProportion / 20.0;
 float maxIntegral = 200; //testing
 float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
@@ -79,8 +61,11 @@ float integralFunctional;
 
 //Define the aggressive and conservative Tuning Parameters
 int gapSet = 1;
-double aggKp=3, aggKi=0.5, aggKd=1;
-double consKp=2, consKi=0.05, consKd=0.25;
+double aggKp=12, aggKi=2, aggKd=1;
+double aggKistart = 2;
+double aggKiassay = 8;
+//double consKp=2, consKi=0.05, consKd=0.25;
+double consKp=12, consKi=2, consKd=1;
 
 //Specify the links and initial tuning parameters
 //P_ON_M specifies that Proportional on Measurement be used //P_ON_E (Proportional on Error) is the default behavior
@@ -107,7 +92,6 @@ bool trigger = false;
 //Motor controler settings 
 byte M1ArrayPower = 0; //Motor1 Array of Magnet wire 
 byte M2ArrayPower = 0; //Motor1 Array of Peltier 
-<<<<<<< Updated upstream
 
 #define URC10_MOTOR_1_DIR 4 // set motor for direction control for Magnet wire
 #define URC10_MOTOR_1_PWM 5 // set PWM for power control for Magnet wire
@@ -115,15 +99,6 @@ byte M2ArrayPower = 0; //Motor1 Array of Peltier
 #define URC10_MOTOR_2_DIR 7 // set motor for direction control for Peltier
 #define URC10_MOTOR_2_PWM 6 // set PWM for power control for Peltier 
 
-=======
-
-#define URC10_MOTOR_1_DIR 4 // set motor for direction control for Magnet wire
-#define URC10_MOTOR_1_PWM 5 // set PWM for power control for Magnet wire
-
-#define URC10_MOTOR_2_DIR 7 // set motor for direction control for Peltier
-#define URC10_MOTOR_2_PWM 6 // set PWM for power control for Peltier 
-
->>>>>>> Stashed changes
 #define COOL 0       // motor current direction for cooling effect 
 #define HEAT 1       // motor current direction for heating effect 
 
@@ -210,11 +185,7 @@ void loop(){
   float currentTime = (millis() - startTime)/1000.0;
 
 // ################ Range LEDs ########################################
-<<<<<<< Updated upstream
-  if ((caliTargetTemp-tmp0) > 0.5){
-=======
   if ((caliProbe_targetTemp-tmp0) > 0.5){
->>>>>>> Stashed changes
     //digitalWrite(rangeGoLED, LOW);
     //digitalWrite(rangeStopLED, HIGH);
   } else {
@@ -234,6 +205,13 @@ void loop(){
 // ################ PWM control ########################################
 
   //PID 1.2.0
+
+  if (currentTime<180){ // 3 min
+    aggKi=aggKistart;
+  }else{
+    aggKi=aggKiassay;
+  }
+  
   Setpoint = caliProbe_targetTemp;
   Input = tmp0;
   double gap = abs(Setpoint-Input); //distance away from setpoint
@@ -258,24 +236,15 @@ void loop(){
 
     if (enterPWMhold == false && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
       digitalWrite(PWMLED, HIGH);
-<<<<<<< Updated upstream
-      holdingPWM = limitWireOutput; 
-=======
       //holdingPWM = limitWireOutput; 
->>>>>>> Stashed changes
       enterPWMhold = true;
     } else if (enterPWMhold == true && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
       digitalWrite(PWMLED, LOW);
       enterPWMhold = false;
     }      
     
-<<<<<<< Updated upstream
-    tempPercent = ((plateTemp - tmp1)/plateTemp) * 100; 
-    proportion = plateTemp - tmp1; 
-=======
     tempPercent = ((caliPlate_targetTemp - tmp1)/caliPlate_targetTemp) * 100; 
     proportion = caliPlate_targetTemp - tmp1; 
->>>>>>> Stashed changes
       
     integralActual += proportion;
     integralFunctional = integralActual; 
@@ -313,19 +282,8 @@ void loop(){
   if (enterPWMhold == false){
     M1ArrayPower = (byte) limitWireOutput;  //set PWM byte from polynomial scaling 
   } else if (enterPWMhold == true){
-<<<<<<< Updated upstream
-    digitalWrite(PWMLED, HIGH);
-    if (digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == HIGH){
-      holdingPWM = holdingPWM + 1;
-    }
-    if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
-      holdingPWM = holdingPWM - 1;
-    }
-    M1ArrayPower = (byte) holdingPWM;
-=======
     //M1ArrayPower = (byte) holdingPWM;
     M1ArrayPower = (byte) limitWireOutput;
->>>>>>> Stashed changes
   }
 
   digitalWrite(URC10_MOTOR_1_DIR, 1); //Board motor controler current direction for magnet wire
@@ -373,12 +331,6 @@ void loop(){
 
   if (enterPWMhold == false){
     if (digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == HIGH){
-<<<<<<< Updated upstream
-      tmpOffset = tmpOffset + 0.5;
-    }
-    if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
-      tmpOffset = tmpOffset - 0.5;
-=======
       probeOffset = probeOffset + 0.5;
     }
     if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
@@ -397,7 +349,6 @@ void loop(){
     }
     if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW){
       holdingPWM = holdingPWM - 1;
->>>>>>> Stashed changes
     }
   }
 
