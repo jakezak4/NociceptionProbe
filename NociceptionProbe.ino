@@ -24,7 +24,7 @@ float probeOffset = 0; //changes target temp by 0.5oC
 float plateOffset = 0; //changes target temp by 0.5oC
 float caliProbe_targetTemp = Probe_targetTemp + probeOffset;
 float caliPlate_targetTemp = Plate_targetTemp + plateOffset;
-int PWMmax = 150; //constrain scaling to not burn magnet wire 
+int PWMmax = 200; //constrain scaling to not burn magnet wire 
 int holdingPWM = 0; // Store PWM to hold power for calibration 
 bool calibration = false; 
 bool enterPWMhold = false;
@@ -60,10 +60,12 @@ float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent i
 float integralFunctional;
 
 //Define the aggressive and conservative Tuning Parameters
-int gapSet = 1;
-double aggKp=12, aggKi=2, aggKd=1;
+int gapSet = 0; //conservative PID control is off 
+double aggKp=96, aggKi=16, aggKd=1;
+double aggKpstart = 24;
+double aggKpassay = aggKp;
 double aggKistart = 2;
-double aggKiassay = 8;
+double aggKiassay = aggKi;
 //double consKp=2, consKi=0.05, consKd=0.25;
 double consKp=12, consKi=2, consKd=1;
 
@@ -207,9 +209,11 @@ void loop(){
   //PID 1.2.0
 
   if (currentTime<180){ // 3 min
-    aggKi=aggKistart;
+    aggKp = aggKpstart;
+    aggKi = aggKistart;
   }else{
-    aggKi=aggKiassay;
+    aggKp = aggKpassay;
+    aggKi = aggKiassay;
   }
   
   Setpoint = caliProbe_targetTemp;
@@ -219,7 +223,7 @@ void loop(){
   if(gap<gapSet) { //we're close to setpoint, use conservative tuning parameters
     myPID.SetTunings(consKp, consKi, consKd);
   } else { //we're far from setpoint, use aggressive tuning parameters
-     myPID.SetTunings(aggKp, aggKi, aggKd);
+    myPID.SetTunings(aggKp, aggKi, aggKd);
   }
   
   myPID.Compute();
