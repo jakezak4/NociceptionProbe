@@ -14,8 +14,8 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-int Probe_targetTemp = 46; //target temperature of inside probe 
-int Plate_targetTemp = 25; //temperature of calibration plate
+int Probe_targetTemp = 50; //target temperature of inside probe 
+int Plate_targetTemp = 25; //temperature of assay plate
 float assayTime = 60*240; // 4hrs in seconds 
 // #####################################################################
 // #####################################################################
@@ -53,7 +53,7 @@ int absTempPercent; //make all temp values positive
 int rateAdjust; //adjusted rate of PWM power based
 
 float proportion;
-float cProportion = 370 / Probe_targetTemp * 1.6; //testing
+float cProportion = 1000 / Probe_targetTemp * 1.6; //testing
 float cIntegral = cProportion / 20.0;
 float maxIntegral = 200; //testing
 float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
@@ -78,7 +78,7 @@ int sysOnLED = 8; // LED system start
 
 //int rangeGoLED = 18; // Range good to use
 //int rangeStopLED = 19; // Outside range
-int calibrationLED = A4; // Calibration loop active 
+int targetLED = A4; // target gap LED 
 int PWMLED = A5; // hold PWM 
 
 int buttonStart = A0;
@@ -124,7 +124,7 @@ void setup(){
   
   //pinMode(rangeGoLED, OUTPUT); // Range good to use
   //pinMode(rangeStopLED, OUTPUT); // Outside range
-  pinMode(calibrationLED, OUTPUT); // Calibration loop active 
+  pinMode(targetLED, OUTPUT); // target gap LED 
   pinMode(PWMLED, OUTPUT); // hold PWM 
   
   pinMode(buttonStart, INPUT_PULLUP);  
@@ -140,8 +140,8 @@ void setup(){
   //turn the PID on
   myPID.SetMode(AUTOMATIC);   
 
-  Serial.print("#Target temp is ");
-  Serial.println(Probe_targetTemp);
+  //Serial.print("#Target temp is ");
+  //Serial.println(Probe_targetTemp);
   
   Serial.println("Int-Temp,Ext-Temp,T%Probe,T%Plate,probeOffset,plateOffset,PWM,Video"); 
 }
@@ -195,15 +195,6 @@ void loop(){
     //digitalWrite(rangeStopLED, LOW);
   }  
 
-// ################ Calibration button ########################################
-  if (calibration == false && digitalRead(buttonStart) == LOW && digitalRead(buttonStop) == LOW){
-    digitalWrite(calibrationLED, HIGH);
-    calibration = true; 
-  } else if (calibration == true && digitalRead(buttonStart) == LOW && digitalRead(buttonStop) == LOW) {
-    digitalWrite(calibrationLED, LOW);
-    calibration = false; 
-  }  
-
 // ################ PWM control ########################################
 
   //PID 1.2.0
@@ -236,46 +227,40 @@ void loop(){
     limitWireOutput = Output;
   }
 
-  if (calibration == true) { 
-
-    if (enterPWMhold == false && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
-      digitalWrite(PWMLED, HIGH);
-      //holdingPWM = limitWireOutput; 
-      enterPWMhold = true;
-    } else if (enterPWMhold == true && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
-      digitalWrite(PWMLED, LOW);
-      enterPWMhold = false;
-    }      
-    
-    tempPercent = ((caliPlate_targetTemp - tmp1)/caliPlate_targetTemp) * 100; 
-    proportion = caliPlate_targetTemp - tmp1; 
-      
-    integralActual += proportion;
-    integralFunctional = integralActual; 
+  if (enterPWMhold == false && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
+    digitalWrite(PWMLED, HIGH);
+    //holdingPWM = limitWireOutput; 
+    enterPWMhold = true;
+  } else if (enterPWMhold == true && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
+    digitalWrite(PWMLED, LOW);
+    enterPWMhold = false;
+  }      
   
-    if (integralActual > maxIntegral)
-      integralFunctional = maxIntegral;
-    else if (integralActual < -maxIntegral)
-      integralFunctional = -maxIntegral;   
-
-    rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
-  
-    if(rateAdjust > 225) { //constrain scaling to 255 
-      limitPeltierOutput = 225; 
-    } else if (rateAdjust < 0){
-      limitPeltierOutput = 0;
-    } else {
-      limitPeltierOutput = rateAdjust;
-    }
-
-    if (proportion > 0){
-      tempDirection = HEAT; 
-    } else if (proportion < 0){
-      //tempDirection = COOL; 
-    }
+  tempPercent = ((caliPlate_targetTemp - tmp1)/caliPlate_targetTemp) * 100; 
+  proportion = caliPlate_targetTemp - tmp1; 
     
-  } else { // Calibration == false 
+  integralActual += proportion;
+  integralFunctional = integralActual; 
+
+  if (integralActual > maxIntegral)
+    integralFunctional = maxIntegral;
+  else if (integralActual < -maxIntegral)
+    integralFunctional = -maxIntegral;   
+
+  rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
+
+  if(rateAdjust > 225) { //constrain scaling to 255 
+    limitPeltierOutput = 225; 
+  } else if (rateAdjust < 0){
     limitPeltierOutput = 0;
+  } else {
+    limitPeltierOutput = rateAdjust;
+  }
+
+  if (proportion > 0){
+    tempDirection = HEAT; 
+  } else if (proportion < 0){
+    //tempDirection = COOL; 
   }
   
   if (endHeat == true){
@@ -296,6 +281,13 @@ void loop(){
   digitalWrite(URC10_MOTOR_2_DIR, tempDirection);
   M2ArrayPower = (byte) limitPeltierOutput;  //set PWM byte from polynomial scaling 
   analogWrite(URC10_MOTOR_2_PWM, M2ArrayPower);   //send PWM value to Peltier   
+
+// ################ Target Light ########################################
+  if (gap < 0.2 && currentTime > (60*5)){
+    digitalWrite(targetLED, HIGH); 
+  } else {
+    digitalWrite(targetLED, LOW);
+  }  
 
 // ################ Print variables control ########################################
 
