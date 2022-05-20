@@ -14,7 +14,7 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-int Probe_targetTemp = 50; //target temperature of inside probe 
+int Probe_targetTemp = 38; //target temperature of inside probe 
 int Plate_targetTemp = 25; //temperature of assay plate
 float assayTime = 60*240; // 4hrs in seconds 
 // #####################################################################
@@ -45,33 +45,23 @@ int limitPeltierOutput;
 
 //PID 1.2.0 by B.B.
 //Define Variables we'll be connecting to
-double Setpoint, Input, Output;
-
-// Custom PID variables 
-int tempPercent; //percent difference from sensor and target temp 
-int absTempPercent; //make all temp values positive 
-int rateAdjust; //adjusted rate of PWM power based
-
-float proportion;
-float cProportion = 1000 / Probe_targetTemp * 1.6; //testing
-float cIntegral = cProportion / 20.0;
-float maxIntegral = 200; //testing
-float integralActual = 0.0; // the "I" in PID ##### changing to try to prevent initial drop
-float integralFunctional;
+double Setpoint_probe, Input_probe, Output_probe, gap_probe;
+double Setpoint_plate, Input_plate, Output_plate, gap_plate;
 
 //Define the aggressive and conservative Tuning Parameters
-int gapSet = 0; //conservative PID control is off 
-double aggKp=96, aggKi=16, aggKd=1;
-double aggKpstart = 24;
-double aggKpassay = aggKp;
-double aggKistart = 2;
-double aggKiassay = aggKi;
-//double consKp=2, consKi=0.05, consKd=0.25;
-double consKp=12, consKi=2, consKd=1;
+//int gapSet_probe = 0; //conservative PID control is off 
+double aggKp_probe=36, aggKi_probe=30, aggKd_probe=5;
+double consKp_probe=36, consKi_probe=30, consKd_probe=5;
+//double consKp_probe=24, consKi_probe=2, consKd_probe=1;
+
+double Kp_probe=consKp_probe,Ki_probe=consKi_probe,Kd_probe=consKd_probe;
+double Kp_plate=100,Ki_plate=20,Kd_plate=0;
 
 //Specify the links and initial tuning parameters
-//P_ON_M specifies that Proportional on Measurement be used //P_ON_E (Proportional on Error) is the default behavior
-PID myPID(&Input, &Output, &Setpoint, consKp, consKi, consKd,P_ON_M, DIRECT);
+//P_ON_M specifies that Proportional on Measurement be used, make the output move more smoothly when the setpoint is changed
+//P_ON_E (Proportional on Error) is the default behavior
+PID myPID_probe(&Input_probe, &Output_probe, &Setpoint_probe, Kp_probe, Ki_probe, Kd_probe,P_ON_M, DIRECT);
+PID myPID_plate(&Input_plate, &Output_plate, &Setpoint_plate, Kp_plate, Ki_plate, Kd_plate,P_ON_M, DIRECT);
 
 //Button controler settings 
 int sysOnLED = 8; // LED system start
@@ -136,17 +126,21 @@ void setup(){
 
   //PID 1.2.0
   //initialize the variables we're linked to
-  Setpoint = caliProbe_targetTemp;
+  Setpoint_probe = caliProbe_targetTemp;
+  Setpoint_plate = caliPlate_targetTemp;
   //turn the PID on
-  myPID.SetMode(AUTOMATIC);   
+  myPID_probe.SetMode(AUTOMATIC);   
+  myPID_plate.SetMode(AUTOMATIC);
 
   //Serial.print("#Target temp is ");
   //Serial.println(Probe_targetTemp);
   
-  Serial.println("Int-Temp,Ext-Temp,T%Probe,T%Plate,probeOffset,plateOffset,PWM,Video"); 
+  Serial.println("Int-Temp,Ext-Temp,diff-Probe,diff-Plate,probeOffset,plateOffset,PWM,Video"); 
 }
 
 void loop(){
+
+  float currentTime = (millis() - startTime)/1000.0;
 
 // ##### Start Button trigger ##############################    
   while (trigger == false){
@@ -177,54 +171,52 @@ void loop(){
   
   double tmp0; // thermocouple #1
   double tmp1; // thermocouple #2
-   
   read_thermocouple(tmp0, tmp1);
-  Serial.print(tmp0); // print temperature sensor 0 
-  Serial.print(",");
-  Serial.print(tmp1); // print temperature sensor 1
-  Serial.print(",");
-  
-  float currentTime = (millis() - startTime)/1000.0;
-
-// ################ Range LEDs ########################################
-  if ((caliProbe_targetTemp-tmp0) > 0.5){
-    //digitalWrite(rangeGoLED, LOW);
-    //digitalWrite(rangeStopLED, HIGH);
-  } else {
-    //digitalWrite(rangeGoLED, HIGH);
-    //digitalWrite(rangeStopLED, LOW);
-  }  
 
 // ################ PWM control ########################################
 
   //PID 1.2.0
+ 
+  Setpoint_probe = caliProbe_targetTemp;
+  Input_probe = tmp0;
+  gap_probe = abs(Setpoint_probe-Input_probe); //distance away from setpoint
 
-  if (currentTime<180){ // 3 min
-    aggKp = aggKpstart;
-    aggKi = aggKistart;
-  }else{
-    aggKp = aggKpassay;
-    aggKi = aggKiassay;
-  }
-  
-  Setpoint = caliProbe_targetTemp;
-  Input = tmp0;
-  double gap = abs(Setpoint-Input); //distance away from setpoint
-  
-  if(gap<gapSet) { //we're close to setpoint, use conservative tuning parameters
-    myPID.SetTunings(consKp, consKi, consKd);
-  } else { //we're far from setpoint, use aggressive tuning parameters
-    myPID.SetTunings(aggKp, aggKi, aggKd);
-  }
-  
-  myPID.Compute();
+  Setpoint_plate = caliPlate_targetTemp;
+  Input_plate = tmp1;
 
-  if(Output > PWMmax) { //constrain scaling to not burn wire 
+  // ######### Target Light and probe K control ###############
+  if (currentTime < (60*3)){ // 3 min
+    digitalWrite(targetLED, LOW);
+    Kp_probe = consKp_probe;
+    Ki_probe = consKi_probe;
+  } else if (gap_probe < 0.2 && currentTime > (60*3)){ // 3 min
+    digitalWrite(targetLED, HIGH);
+  } else {
+    digitalWrite(targetLED, LOW);
+    Kp_probe = aggKp_probe;
+    Ki_probe = aggKi_probe;
+  } 
+
+  myPID_probe.SetTunings(Kp_probe, Ki_probe, Kd_probe);
+  myPID_probe.Compute();
+  
+  if(Output_probe > PWMmax) { //constrain scaling to not burn wire 
     limitWireOutput = PWMmax; 
-  } else if (Output < 0){
+  } else if (Output_probe < 0){
     limitWireOutput = 0;
   } else {
-    limitWireOutput = Output;
+    limitWireOutput = Output_probe;
+  }
+
+  myPID_plate.Compute();
+  myPID_probe.SetTunings(Kp_plate, Ki_plate, Kd_plate);
+
+  if(Output_plate > 254) { //constrain scaling to not burn wire 
+    limitPeltierOutput = 254; 
+  } else if (Output_plate < 0){
+    limitPeltierOutput = 0;
+  } else {
+    limitPeltierOutput = Output_plate;
   }
 
   if (enterPWMhold == false && digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == LOW){
@@ -235,32 +227,13 @@ void loop(){
     digitalWrite(PWMLED, LOW);
     enterPWMhold = false;
   }      
-  
-  tempPercent = ((caliPlate_targetTemp - tmp1)/caliPlate_targetTemp) * 100; 
-  proportion = caliPlate_targetTemp - tmp1; 
-    
-  integralActual += proportion;
-  integralFunctional = integralActual; 
 
-  if (integralActual > maxIntegral)
-    integralFunctional = maxIntegral;
-  else if (integralActual < -maxIntegral)
-    integralFunctional = -maxIntegral;   
-
-  rateAdjust = cProportion * proportion + cIntegral * integralFunctional;
-
-  if(rateAdjust > 225) { //constrain scaling to 255 
-    limitPeltierOutput = 225; 
-  } else if (rateAdjust < 0){
-    limitPeltierOutput = 0;
-  } else {
-    limitPeltierOutput = rateAdjust;
-  }
-
-  if (proportion > 0){
+  //set peltier direction for cooling or heating 
+  //need a better way to compare to room temperature 
+  if ((Plate_targetTemp - 20) > 0){
     tempDirection = HEAT; 
-  } else if (proportion < 0){
-    //tempDirection = COOL; 
+  } else if ((Plate_targetTemp - 20) < 0){
+    tempDirection = COOL; 
   }
   
   if (endHeat == true){
@@ -282,18 +255,15 @@ void loop(){
   M2ArrayPower = (byte) limitPeltierOutput;  //set PWM byte from polynomial scaling 
   analogWrite(URC10_MOTOR_2_PWM, M2ArrayPower);   //send PWM value to Peltier   
 
-// ################ Target Light ########################################
-  if (gap < 0.2 && currentTime > (60*5)){
-    digitalWrite(targetLED, HIGH); 
-  } else {
-    digitalWrite(targetLED, LOW);
-  }  
-
 // ################ Print variables control ########################################
 
-  float diffProbeTarget = ((caliProbe_targetTemp-tmp0) / caliProbe_targetTemp) * 100;
-  float diffPlateTarget = ((caliPlate_targetTemp-tmp1) / caliPlate_targetTemp) * 100;
-
+  float diffProbeTarget = (caliProbe_targetTemp-tmp0)*10;
+  float diffPlateTarget = (caliPlate_targetTemp-tmp1)*10;
+   
+  Serial.print(tmp0); // print temperature sensor 0 
+  Serial.print(",");
+  Serial.print(tmp1); // print temperature sensor 1
+  Serial.print(",");
   Serial.print(diffProbeTarget);
   Serial.print(","); 
   Serial.print(diffPlateTarget);
@@ -311,10 +281,10 @@ void loop(){
   Serial.print(",");
   Serial.print(currentTime);
   Serial.print(",");
-  Serial.print(",");
   Serial.print(M2ArrayPower);
   //Trouble Shooting 
   */
+  
   Serial.println();
 
 // ################ Assay controls ########################################
