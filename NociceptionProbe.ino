@@ -3,7 +3,7 @@
 /***************************************************************************
 This will heat magnet wire by PWM with two k-type thermalcouples for use as a nociceptive probe
 M1 controls PWM  
-M2 unused
+M2 controls peltiers for assay plate heating
 Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 ***************************************************************************/
 #include "PlayingWithFusion_MAX31856.h" //Playing With Fusion thermocouple breakout library 
@@ -11,28 +11,51 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 #include "SPI.h"  //microcontroler library 
 #include "PID_v1.h" //v1.2.0 by Brett Beauregard
 
-
 // ##### Assay variables ###############################################
 // #####################################################################
-float Probe_targetTemp = 46.0; //target temperature of inside probe 
+float Probe_targetTemp = 42.0; //target temperature of inside probe 
 float Plate_targetTemp = 25.0; //temperature of assay plate
 unsigned long assayTime = 4UL*3600000; // 4hrs in milliseconds 
 // #####################################################################
 // #####################################################################
 
+//PID 1.2.0 by B.B.
+//Define Variables we'll be connecting to
+double Setpoint_probe, Input_probe, Output_probe, gap_probe;
+double Setpoint_plate, Input_plate, Output_plate, gap_plate;
+
+// ##### PID variables ###############################################
+//double Kp_probe=24,Ki_probe=4,Kd_probe=5; //6/15
+//double Kp_probe=36,Ki_probe=20,Kd_probe=5; //6/10 
+
+double Kp_probe=18,Ki_probe=1,Kd_probe=0; //
+//double Kp_plate=30,Ki_plate=1,Kd_plate=0; // calibration 
+double Kp_plate=60,Ki_plate=0.5,Kd_plate=1; // assay 
+
+//Specify the links and initial tuning parameters
+//P_ON_M specifies that Proportional on Measurement be used, make the output move more smoothly when the setpoint is changed
+//P_ON_E (Proportional on Error) is the default behavior
+PID myPID_probe(&Input_probe, &Output_probe, &Setpoint_probe, Kp_probe, Ki_probe, Kd_probe,P_ON_M, DIRECT);
+PID myPID_plate(&Input_plate, &Output_plate, &Setpoint_plate, Kp_plate, Ki_plate, Kd_plate,P_ON_M, DIRECT);
+
+
 float probeOffset = 0.0; //changes target temp by 0.5oC
 float plateOffset = 0.0; //changes target temp by 0.5oC
 float caliProbe_targetTemp = Probe_targetTemp + probeOffset;
-float caliPlate_targetTemp = Plate_targetTemp + plateOffset;
+float caliPlate_targetTemp = Plate_targetTemp + plateOffset; 
 float diffProbeTarget = 0.0;
 float diffPlateTarget = 0.0;
+int startTimeDelay = 2; //start time delay in minutes 
 
+int PWMmax = 255; //constrain scaling to not burn magnet wire 
+int maxCount = 0; //control fast PWM max 
+int maxDelay = 0; //control fast PWM max 
+float maxCountlength = 0.125; //secs max PWM is held for touch
+float maxDelaylength = 20; //secs after touch the max can start again   
 
-int PWMmax = 200; //constrain scaling to not burn magnet wire 
 int holdingPWM = 0; // Store PWM to hold power for calibration 
 bool calibration = false; 
 bool enterPWMhold = false;
-bool endHeat = false;
 
 bool buttonPause = false; //debounce for offset buttons
 unsigned long buttonTime = 0L; 
@@ -52,25 +75,6 @@ unsigned long runInterval = 125; // milliseconds interval of read-PID-print loop
 unsigned long loopMillis; //store last time of loop
 int limitWireOutput; // contrained to 0-255 
 int limitPeltierOutput;
-
-//PID 1.2.0 by B.B.
-//Define Variables we'll be connecting to
-double Setpoint_probe, Input_probe, Output_probe, gap_probe;
-double Setpoint_plate, Input_plate, Output_plate, gap_plate;
-
-//Define the aggressive and conservative Tuning Parameters
-//int gapSet_probe = 0; //conservative PID control is off 
-//double aggKp_probe=36, aggKi_probe=30, aggKd_probe=5;
-//double consKp_probe=36, consKi_probe=30, consKd_probe=5;
-
-double Kp_probe=36,Ki_probe=20,Kd_probe=5;
-double Kp_plate=100,Ki_plate=20,Kd_plate=0;
-
-//Specify the links and initial tuning parameters
-//P_ON_M specifies that Proportional on Measurement be used, make the output move more smoothly when the setpoint is changed
-//P_ON_E (Proportional on Error) is the default behavior
-PID myPID_probe(&Input_probe, &Output_probe, &Setpoint_probe, Kp_probe, Ki_probe, Kd_probe,P_ON_M, DIRECT);
-PID myPID_plate(&Input_plate, &Output_plate, &Setpoint_plate, Kp_plate, Ki_plate, Kd_plate,P_ON_M, DIRECT);
 
 //Button controler settings 
 int sysOnLED = 8; // LED system start
@@ -98,8 +102,8 @@ byte M2ArrayPower = 0; //Motor1 Array of Peltier
 #define URC10_MOTOR_2_DIR 7 // set motor for direction control for Peltier
 #define URC10_MOTOR_2_PWM 6 // set PWM for power control for Peltier 
 
-#define COOL 0       // motor current direction for cooling effect 
-#define HEAT 1       // motor current direction for heating effect 
+#define COOL 1       // motor current direction for cooling effect 
+#define HEAT 0       // motor current direction for heating effect 
     
 double tmp0; // thermocouple #1
 double tmp1; // thermocouple #2
@@ -140,7 +144,8 @@ void setup(){
   myPID_probe.SetMode(AUTOMATIC);   
   myPID_plate.SetMode(AUTOMATIC);
   
-  Serial.println("Int-Temp,Ext-Temp,diff-Probe,diff-Plate,probeOffset,plateOffset,PWM,Video"); 
+  Serial.println("Int-Temp,Ext-Temp,diff-Probe,diff-Plate,probeOffset,plateOffset,PWM_probe,PWM_plate,Video"); 
+  //Serial.println("diff-Probe,PWM"); 
 }
 
 void loop(){
@@ -171,51 +176,50 @@ void loop(){
     //PID 1.2.0
     Setpoint_probe = caliProbe_targetTemp;
     Input_probe = tmp0;
-    gap_probe = abs(Setpoint_probe-Input_probe); //distance away from setpoint
+    gap_probe = abs(Setpoint_probe - Input_probe); //distance away from setpoint
   
     Setpoint_plate = caliPlate_targetTemp;
     Input_plate = tmp1;
-  
-    // ######### Target Light and probe K control ###############
-    if (gap_probe < 0.2 && (millis() - startTime) > (60000*3)){ // 3 min
-      digitalWrite(targetLED, HIGH);
-    } else {
-      digitalWrite(targetLED, LOW);
-    } 
-  
+/*
+    if(Setpoint_plate - Input_plate >= 0){
+      tempDirection = HEAT;
+    }else{
+      tempDirection = COOL;
+    }
+*/   
     myPID_probe.SetTunings(Kp_probe, Ki_probe, Kd_probe);
     myPID_probe.Compute();
-    
-    if(Output_probe > PWMmax) { //constrain scaling to not burn wire 
-      limitWireOutput = PWMmax; 
-    } else if (Output_probe < 0){
-      limitWireOutput = 0;
-    } else {
-      limitWireOutput = Output_probe;
-    }
-  
+
+    myPID_plate.SetTunings(Kp_plate, Ki_plate, Kd_plate);
     myPID_plate.Compute();
-    myPID_probe.SetTunings(Kp_plate, Ki_plate, Kd_plate);
   
-    if(Output_plate > 255) { //constrain scaling to not burn wire 
-      limitPeltierOutput = 255; 
+    if(Output_plate > 180) { //constrain scaling for peltier  
+      limitPeltierOutput = 180; 
     } else if (Output_plate < 0){
       limitPeltierOutput = 0;
     } else {
       limitPeltierOutput = Output_plate;
     }
-  
-    //set peltier direction for cooling or heating 
-    //need a better way to compare to room temperature 
-    if ((Plate_targetTemp - 20) > 0){
-      tempDirection = HEAT; 
-    } else if ((Plate_targetTemp - 20) < 0){
-      tempDirection = COOL; 
+
+    if(caliPlate_targetTemp - tmp1 >= 2){
+      limitPeltierOutput = 40;
     }
-    
-    if (endHeat == true){
+
+    limitPeltierOutput = 25; //holding plate PWM to try to keep temp consistnat
+
+    // ######### Probe Range control ###############  
+    if (gap_probe < 0.1 && (millis() - startTime) > (60000*startTimeDelay)){        
+      digitalWrite(targetLED, HIGH); // Target light
+    } else {
+      digitalWrite(targetLED, LOW);
+    } 
+
+    if(Output_probe > PWMmax) { //constrain scaling 
+      limitWireOutput = PWMmax; 
+    } else if (Output_probe < 0){
       limitWireOutput = 0;
-      limitPeltierOutput = 0;
+    } else {
+      limitWireOutput = Output_probe; 
     }
 
     digitalWrite(URC10_MOTOR_1_DIR, 1); //Board motor controler current direction for magnet wire
@@ -228,18 +232,15 @@ void loop(){
 
   // ################ Print variables ########################################
   
-    diffProbeTarget = (caliProbe_targetTemp-tmp0)*10.0;
-    diffPlateTarget = (caliPlate_targetTemp-tmp1)*10.0;
+    diffProbeTarget = (caliProbe_targetTemp-tmp0);
+    diffPlateTarget = (caliPlate_targetTemp-tmp1);
     
     Serial.print(tmp0); // print temperature sensor probe 
     Serial.print(",");
- 
     Serial.print(tmp1); // print temperature sensor plate
     Serial.print(",");
-    
     Serial.print(diffProbeTarget);
     Serial.print(","); 
-    
     Serial.print(diffPlateTarget);
     Serial.print(","); 
     Serial.print(probeOffset,1);
@@ -248,15 +249,10 @@ void loop(){
     Serial.print(",");
     Serial.print(M1ArrayPower);
     Serial.print(",");
-    Serial.print(video_record);   
-
-    /* //Trouble Shooting
-    Serial.print(",");
     Serial.print(M2ArrayPower);
-    Serial.print(",");
-    Serial.print((millis()-startTime)/1000); 
-    //Trouble Shooting 
-    */
+    Serial.print(","); 
+    Serial.print(video_record); 
+
     Serial.println();
   }
 // ##### End Loop delay ####################################
@@ -289,12 +285,6 @@ void loop(){
 
   //caliPlate_targetTemp = Plate_targetTemp + plateOffset;
   digitalWrite(PWMLED, LOW);
-
-  if (digitalRead(buttonStart) == HIGH && digitalRead(buttonStop) == LOW){
-    digitalWrite(sysOnLED, LOW);
-    endHeat = true;
-    Serial.println();
-  }
 
  // ################ Auto Shutoff ########################################
   while (millis() - startTime > assayTime){ //end program when assay length is done and hold in loop 
