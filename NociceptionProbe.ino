@@ -13,7 +13,7 @@ Thermocouple code from PlayingSEN30006_MAX31856_example.ino
 
 // ##### Assay variables ###############################################
 // #####################################################################
-float Probe_targetTemp = 42.0; //target temperature of inside probe 
+float Probe_targetTemp = 48.0; //target temperature of inside probe 
 float Plate_targetTemp = 25.0; //temperature of assay plate
 unsigned long assayTime = 4UL*3600000; // 4hrs in milliseconds 
 // #####################################################################
@@ -30,7 +30,7 @@ double Setpoint_plate, Input_plate, Output_plate, gap_plate;
 
 double Kp_probe=18,Ki_probe=1,Kd_probe=0; //
 //double Kp_plate=30,Ki_plate=1,Kd_plate=0; // calibration 
-double Kp_plate=60,Ki_plate=0.5,Kd_plate=1; // assay 
+double Kp_plate=100,Ki_plate=10,Kd_plate=0; // assay 
 
 //Specify the links and initial tuning parameters
 //P_ON_M specifies that Proportional on Measurement be used, make the output move more smoothly when the setpoint is changed
@@ -178,7 +178,7 @@ void loop(){
     Input_probe = tmp0;
     gap_probe = abs(Setpoint_probe - Input_probe); //distance away from setpoint
   
-    Setpoint_plate = caliPlate_targetTemp;
+    Setpoint_plate = caliPlate_targetTemp + 3; //approx degree difference from lights to plate 
     Input_plate = tmp1;
 /*
     if(Setpoint_plate - Input_plate >= 0){
@@ -193,19 +193,13 @@ void loop(){
     myPID_plate.SetTunings(Kp_plate, Ki_plate, Kd_plate);
     myPID_plate.Compute();
   
-    if(Output_plate > 180) { //constrain scaling for peltier  
-      limitPeltierOutput = 180; 
+    if(Output_plate > 50) { //constrain scaling for peltier because heating is delayed and because power supply limit for probe  
+      limitPeltierOutput = 50; 
     } else if (Output_plate < 0){
       limitPeltierOutput = 0;
     } else {
       limitPeltierOutput = Output_plate;
     }
-
-    if(caliPlate_targetTemp - tmp1 >= 2){
-      limitPeltierOutput = 40;
-    }
-
-    limitPeltierOutput = 25; //holding plate PWM to try to keep temp consistnat
 
     // ######### Probe Range control ###############  
     if (gap_probe < 0.1 && (millis() - startTime) > (60000*startTimeDelay)){        
