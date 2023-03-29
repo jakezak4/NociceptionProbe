@@ -144,8 +144,7 @@ void setup(){
   myPID_probe.SetMode(AUTOMATIC);   
   myPID_plate.SetMode(AUTOMATIC);
   
-  Serial.println("Int-Temp,Ext-Temp,diff-Probe,diff-Plate,probeOffset,plateOffset,PWM_probe,PWM_plate,Video"); 
-  //Serial.println("diff-Probe,PWM"); 
+  Serial.println("Probe_oC,Plate_oC,diff_Probe,diff_Plate,probeOffset,plateOffset,PWM_probe,PWM_plate,Video");  
 }
 
 void loop(){
