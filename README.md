@@ -33,6 +33,7 @@ For MAC and Linux, see URC10 Cytron manual.
 						*If port does not appear, or IDE cannot connect to the board during upload, then trouble shoot through Windows Device Manager*
 
 	4C: Tools > Serial Monitor > Baud > select "38400"
+	4D: Tools > Manage Libraries > PID by Brett Beauregard 1.2.0 > Install
 
 6) Set program parameters in the "Assay variables" section of code. *note, time variables must be in seconds
   - targetTemp = target temperature that program is held at. 
