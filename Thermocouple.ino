@@ -1,5 +1,5 @@
 // tmp0 and tmp1 are outputs only
-void read_thermocouple(double &tmp0, double &tmp1)
+void read_thermocouple(double &tmp0, double &tmp1, bool &tmpStatus)
 {
   static struct var_max31856 TC_CH0, TC_CH1;   
   struct var_max31856 *tc_ptr;
@@ -14,7 +14,6 @@ void read_thermocouple(double &tmp0, double &tmp1)
 // ##### Print thermo information to serial port ##############################
 
   // Thermocouple channel 0
-  //Serial.print("Int-Tmp ");            // Print TC0 header
   if(TC_CH0.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -30,6 +29,8 @@ void read_thermocouple(double &tmp0, double &tmp1)
     if(0x40 & TC_CH0.status){Serial.print("TC Range  ");}
     if(0x80 & TC_CH0.status){Serial.print("CJ Range  ");}
     Serial.println(" ");
+    digitalWrite(errorLED, HIGH);
+    tmpStatus = true; 
   }
   else  // no fault, print temperature data
   {
@@ -45,7 +46,6 @@ void read_thermocouple(double &tmp0, double &tmp1)
   }
 
   // Thermocouple channel 1
-  //Serial.print("Ext-Tmp ");            // Print TC0 header
   if(TC_CH1.status)
   {
     // lots of faults possible at once, technically... handle all 8 of them
@@ -61,6 +61,8 @@ void read_thermocouple(double &tmp0, double &tmp1)
     if(0x40 & TC_CH1.status){Serial.print("TC Range  ");}
     if(0x80 & TC_CH1.status){Serial.print("CJ Range  ");}
     Serial.println(" ");
+    digitalWrite(errorLED, HIGH);
+    tmpStatus = true; 
   }
   else  // no fault, print temperature data
   {
@@ -70,5 +72,9 @@ void read_thermocouple(double &tmp0, double &tmp1)
     
     // MAX31856 External (thermocouple) Temp
     tmp1 = (double)TC_CH1.lin_tc_temp * 0.0078125;           // convert fixed pt # to double
+  }
+  if(!TC_CH0.status & !TC_CH1.status){// no errors 
+    //digitalWrite(errorLED, LOW);
+    //tmpStatus = false; right now allowing reset while program is running is off. If the TC faults the program needs to be restarted  
   }
 }

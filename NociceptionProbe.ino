@@ -29,8 +29,8 @@ double Setpoint_plate, Input_plate, Output_plate, gap_plate;
 //double Kp_probe=36,Ki_probe=20,Kd_probe=5; //6/10 
 
 double Kp_probe=18,Ki_probe=1,Kd_probe=0; //
-//double Kp_plate=30,Ki_plate=1,Kd_plate=0; // calibration 
-double Kp_plate=100,Ki_plate=10,Kd_plate=0; // assay 
+//double Kp_plate=100,Ki_plate=10,Kd_plate=0; // old
+double Kp_plate=15,Ki_plate=1,Kd_plate=0; // new 
 
 //Specify the links and initial tuning parameters
 //P_ON_M specifies that Proportional on Measurement be used, make the output move more smoothly when the setpoint is changed
@@ -80,7 +80,7 @@ int limitPeltierOutput;
 int sysOnLED = 8; // LED system start
 
 int targetLED = A4; // target gap LED 
-int PWMLED = A5; // hold PWM 
+int errorLED = A5; // thermocouple error, others too later 
 
 int buttonStart = A0;
 int buttonStop = A1;
@@ -107,6 +107,7 @@ byte M2ArrayPower = 0; //Motor1 Array of Peltier
     
 double tmp0; // thermocouple #1
 double tmp1; // thermocouple #2
+bool tmpStatus = false; //thermocouple error status 
 
 int tempDirection = HEAT; 
 
@@ -127,7 +128,7 @@ void setup(){
   pinMode(sysOnLED, OUTPUT); // LED system start
   
   pinMode(targetLED, OUTPUT); // target gap LED 
-  pinMode(PWMLED, OUTPUT); // hold PWM 
+  pinMode(errorLED, OUTPUT); 
   
   pinMode(buttonStart, INPUT_PULLUP);  
   pinMode(buttonStop, INPUT_PULLUP);
@@ -169,7 +170,7 @@ void loop(){
     
   // ##### Thermocouple code ##############################  
     //delay(125); //delay is now happening as while loop //... can be as fast as ~100ms in continuous mode, 1 samp avg
-    read_thermocouple(tmp0, tmp1);
+    read_thermocouple(tmp0, tmp1, tmpStatus);
   
   // ################ PWM control ########################################
     //PID 1.2.0
@@ -213,6 +214,11 @@ void loop(){
       limitWireOutput = 0;
     } else {
       limitWireOutput = Output_probe; 
+    }
+
+    if(tmpStatus == true){ // thermocouple faults will shut PWM off of plate and probe
+      limitPeltierOutput = 0;
+      limitWireOutput = 0;
     }
 
     digitalWrite(URC10_MOTOR_1_DIR, 1); //Board motor controler current direction for magnet wire
@@ -262,11 +268,9 @@ void loop(){
   if (digitalRead(offsetUp) == LOW && digitalRead(offsetDown) == HIGH && buttonPause == false){
     probeOffset = probeOffset + 0.5;
     caliProbe_targetTemp = Probe_targetTemp + probeOffset;
-    digitalWrite(PWMLED, HIGH);
   } else if (digitalRead(offsetUp) == HIGH && digitalRead(offsetDown) == LOW && buttonPause == false){
     probeOffset = probeOffset - 0.5;
     caliProbe_targetTemp = Probe_targetTemp + probeOffset;
-    digitalWrite(PWMLED, HIGH);
   }
 
   if (digitalRead(offsetUp) == LOW || digitalRead(offsetDown) == LOW && buttonPause == false){
@@ -275,9 +279,6 @@ void loop(){
   } else if (millis() - buttonTime > 100){
     buttonPause = false; 
   }
-
-  //caliPlate_targetTemp = Plate_targetTemp + plateOffset;
-  digitalWrite(PWMLED, LOW);
 
  // ################ Auto Shutoff ########################################
   while (millis() - startTime > assayTime){ //end program when assay length is done and hold in loop 
